@@ -981,7 +981,9 @@ static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
             if(state.channel.mode == OPMODE_FM)
                 state.channel.mode = OPMODE_M17;
             else if(state.channel.mode == OPMODE_M17)
-                state.channel.mode = OPMODE_FM;
+                state.channel.mode = OPMODE_APRS;
+            else if(state.channel.mode == OPMODE_APRS)
+                state.channel.mode = OPMODE_FM; //TODO: This sucks
             else //catch any invalid states so they don't get locked out
             #endif
                 state.channel.mode = OPMODE_FM;

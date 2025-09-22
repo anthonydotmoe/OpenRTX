@@ -59,6 +59,7 @@ openrtx_src = ['openrtx/src/core/state.c',
                'openrtx/src/rtx/rtx.cpp',
                'openrtx/src/rtx/OpMode_FM.cpp',
                'openrtx/src/rtx/OpMode_M17.cpp',
+               'openrtx/src/rtx/OpMode_APRS.cpp',
                'openrtx/src/protocols/M17/M17DSP.cpp',
                'openrtx/src/protocols/M17/M17Golay.cpp',
                'openrtx/src/protocols/M17/M17Callsign.cpp',
@@ -66,7 +67,8 @@ openrtx_src = ['openrtx/src/core/state.c',
                'openrtx/src/protocols/M17/M17Demodulator.cpp',
                'openrtx/src/protocols/M17/M17FrameEncoder.cpp',
                'openrtx/src/protocols/M17/M17FrameDecoder.cpp',
-               'openrtx/src/protocols/M17/M17LinkSetupFrame.cpp']
+               'openrtx/src/protocols/M17/M17LinkSetupFrame.cpp',
+               'openrtx/src/protocols/APRS/APRSModulator.cpp']
 
 openrtx_inc = ['openrtx/include',
                'openrtx/include/rtx',
@@ -895,7 +897,7 @@ targets = [
     'opts'     : cs7000p_opts,
     'flashable': true,
     'wrap'     : ' ',
-    'load_addr': '0x08100000'
+    'load_addr': '0x08000000'
   },
   {
     'name'     : 'dm1701',

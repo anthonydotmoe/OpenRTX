@@ -190,6 +190,14 @@ void _ui_drawModeInfo(ui_state_t* ui_state)
             break;
         }
         #endif
+
+        #ifdef CONFIG_APRS
+        case OPMODE_APRS:
+            // Simple print opmode
+            gfx_print(layout.line2_pos, layout.line2_font, TEXT_ALIGN_CENTER,
+                      color_white, "APRS");
+            break;
+        #endif
     }
 }
 
@@ -303,6 +311,18 @@ void _ui_drawMainBottom()
                                 mic_level,
                                 volume,
                                 true);
+            break;
+        #endif
+        #ifdef CONFIG_APRS
+        case OPMODE_APRS:
+            gfx_drawSmeter(meter_pos,
+                           meter_width,
+                           meter_height,
+                           rssi,
+                           squelch,
+                           volume,
+                           true,
+                           yellow_fab413);
             break;
         #endif
     }

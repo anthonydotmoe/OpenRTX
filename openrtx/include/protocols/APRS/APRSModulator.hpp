@@ -1,0 +1,3 @@
+#ifndef APRS_MODULATOR_H
+#define APRS_MODULATOR_H
+#endif // APRS_MODULATOR_H

@@ -1124,6 +1124,15 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
                   yellow_fab413, "2");
     }
 #endif
+    else if (last_state.channel.mode == OPMODE_APRS)
+    {
+        gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_LEFT,
+                  yellow_fab413, "1");
+        gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_LEFT,
+                  color_white, "          ");
+        gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                  yellow_fab413, "2");
+    }
 #if defined(CONFIG_UI_NO_KEYBOARD)
     if (ui_state->macro_menu_selected == 2)
 #endif // CONFIG_UI_NO_KEYBOARD
@@ -1154,6 +1163,13 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
                   color_white, encdec_str);
     }
 #endif
+
+    if (last_state.channel.mode == OPMODE_APRS)
+    {
+        char encdec_str[9] = "        ";
+        gfx_print(layout.line1_pos, layout.top_font, TEXT_ALIGN_CENTER,
+                  color_white, encdec_str);
+    }
 
     // Second row
     // Calculate symmetric second row position, line2_pos is asymmetric like main screen
@@ -1190,6 +1206,11 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
 
     }
 #endif
+    else if (last_state.channel.mode == OPMODE_APRS)
+    {
+        gfx_print(pos_2, layout.top_font, TEXT_ALIGN_LEFT,
+                  color_white, "       ");
+    }
 
 #if defined(CONFIG_UI_NO_KEYBOARD)
         if (ui_state->macro_menu_selected == 4)
@@ -1211,6 +1232,9 @@ bool _ui_drawMacroMenu(ui_state_t* ui_state)
         sniprintf(mode_str, 12,"        M17");
         break;
 #endif
+        case OPMODE_APRS:
+        sniprintf(mode_str, 12,"       APRS");
+        break;
     }
 
     gfx_print(pos_2, layout.top_font, TEXT_ALIGN_CENTER,

@@ -241,6 +241,12 @@ void radio_setOpmode(const enum opmode mode)
             C6000.setModFactor(0x25);
             break;
 
+        case OPMODE_APRS:
+            C6000.fmMode();             // HR_C5000 in FM mode
+            C6000.setInputGain(+9);     // Input gain in dB, probably same as M17
+            C6000.setModFactor(0x25);
+            break;
+
         default:
             break;
     }
@@ -352,6 +358,11 @@ void radio_enableTx()
             break;
 
         case OPMODE_M17:
+            C6000.disableTones();
+            C6000.startAnalogTx(TxAudioSource::LINE_IN, FmConfig::BW_25kHz);
+            break;
+
+        case OPMODE_APRS:
             C6000.disableTones();
             C6000.startAnalogTx(TxAudioSource::LINE_IN, FmConfig::BW_25kHz);
             break;

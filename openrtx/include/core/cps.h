@@ -262,6 +262,7 @@ typedef struct
         fmInfo_t  fm;              //< Information block for FM channels
         dmrInfo_t dmr;             //< Information block for DMR channels
         m17Info_t m17;             //< Information block for M17 channels
+//      aprsInfo_t aprs;           //< Information block for APRS channels (SSID, Path, etc.)
     };
 }
 __attribute__((packed)) channel_t; // 59B
