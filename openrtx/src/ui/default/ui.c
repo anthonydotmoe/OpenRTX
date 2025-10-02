@@ -265,6 +265,29 @@ static const char *symbols_ITU_T_E161_callsign[] =
     ""
 };
 
+static const uint8_t opmode_cycle[] =
+{
+    OPMODE_FM,
+#ifdef CONFIG_DMR
+    OPMODE_DMR,
+#endif
+#ifdef CONFIG_M17
+    OPMODE_M17,
+#endif
+};
+
+#define OPMODE_CYCLE_COUNT (sizeof(opmode_cycle)/sizeof(opmode_cycle[0]))
+
+static uint8_t next_opmode(uint8_t cur) {
+    for (unsigned i = 0; i < OPMODE_CYCLE_COUNT; i++) {
+        if (opmode_cycle[i] == cur) {
+            return opmode_cycle[(i + 1) % OPMODE_CYCLE_COUNT];
+        }
+    }
+    // If the current mode isn't in the cycle, reset to first.
+    return opmode_cycle[0];
+}
+
 // Calculate number of menu entries
 const uint8_t menu_num = sizeof(menu_items)/sizeof(menu_items[0]);
 const uint8_t settings_num = sizeof(settings_items)/sizeof(settings_items[0]);
@@ -998,14 +1021,7 @@ static void _ui_fsm_menuMacro(kbd_msg_t msg, bool *sync_rtx)
             break;
         case 5:
             // Cycle through radio modes
-            #ifdef CONFIG_M17
-            if(state.channel.mode == OPMODE_FM)
-                state.channel.mode = OPMODE_M17;
-            else if(state.channel.mode == OPMODE_M17)
-                state.channel.mode = OPMODE_FM;
-            else //catch any invalid states so they don't get locked out
-            #endif
-                state.channel.mode = OPMODE_FM;
+            state.channel.mode = next_opmode(state.channel.mode);
             *sync_rtx = true;
             vp_announceRadioMode(state.channel.mode, queueFlags);
             break;
