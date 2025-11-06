@@ -1,5 +1,6 @@
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <string.h> // for NULL
 
 #include "ui/ui_menu.h"
@@ -12,6 +13,47 @@
 
 /* How many rows we plan to show at once; for scrolling logic */
 #define MENU_VISIBLE_ROWS 6
+
+static void menu_value_adjust(MenuValueBinding *b, bool inc)
+{
+    (void)inc; // unused for bool; kept for future symmetry
+
+    if (!b || !b->ptr) {
+        return;
+    }
+
+    switch (b->kind) {
+        case MENU_VAL_BOOL: {
+            bool *p = (bool *)b->ptr;
+            *p = !*p;
+            break;
+        }
+        default:
+            break;
+    }
+
+    if (b->on_change) {
+        b->on_change(b->ptr);
+    }
+}
+
+static void menu_value_format(const MenuValueBinding *b, char *buf, size_t n)
+{
+    if (!b || !b->ptr || !buf || n == 0) {
+        return;
+    }
+
+    switch (b->kind) {
+        case MENU_VAL_BOOL: {
+            bool v = *(bool *)b->ptr;
+            sniprintf(buf, n, "%s", v ? "On" : "Off");
+            break;
+        }
+        default:
+            sniprintf(buf, n, "?");
+            break;
+    }
+}
 
 typedef struct {
     const MenuItem *menu;   // pointer to current folder node
@@ -26,7 +68,7 @@ typedef struct {
     MenuFrame   stack[MENU_MAX_DEPTH];
     uint8_t     depth;
     bool        dirty;
-    // TODO: more, e.g. edit mode?
+    bool        edit;
 } MenuState;
 
 static void menu_tick(UiScreen *self, const UiEvent *ev);
@@ -54,6 +96,7 @@ static void menu_reset_to_root(MenuState *st)
     st->stack[0].first = 0;
     
     st->dirty = true;
+    st->edit  = false;
 }
 
 /* Clamp first so that pos is always visible in [first, first + MENU_VISIBLE_ROWS - 1] */
@@ -85,14 +128,13 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
 {
     MenuState *st = (MenuState *)self->ctx;
 
+    if (!st || !ev) {
+        return;
+    }
+
     /* If somehow unitialized, reset to root */
     if (st->depth == 0) {
         menu_reset_to_root(st);
-    }
-
-    /* No event? nothing to do this tick */
-    if (!ev) {
-        return;
     }
 
     /* For now we treat all events as key events */
@@ -114,9 +156,12 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
         return;
     }
 
-    switch (key) {
-        case KEY_UP:
+    /* Handle keypress */
+    if (!st->edit) {
+        /* --- NORMAL NAVIGATION MODE --- */
+        switch (key)
         {
+        case KEY_UP:
             if (frame->pos > 0) {
                 frame->pos--;
             } else {
@@ -125,10 +170,8 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
             menu_ensure_visible(frame);
             st->dirty = true;
             break;
-        }
 
         case KEY_DOWN:
-        {
             if (frame->pos + 1 < menu->child_count) {
                 frame->pos++;
             } else {
@@ -137,12 +180,11 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
             menu_ensure_visible(frame);
             st->dirty = true;
             break;
-        }
 
-        case KEY_ENTER:
-        {
+        case KEY_ENTER: {
             const MenuItem *item = &menu->children[frame->pos];
 
+            /* Enter non-empty folder*/
             if (item->kind == MENU_NODE_FOLDER && item->child_count > 0 && item->children != NULL) {
                 /* Descend into child folder */
                 if (st->depth < MENU_MAX_DEPTH) {
@@ -153,17 +195,20 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
                     st->depth++;
                     st->dirty = true;
                 }
-            } else {
-                /* Action or Value node: invoke callback if present */
-                if (item->cb) {
-                    (void)item->cb(MENU_CMD_SELECT, 0, item->user);
-                }
+            }
+            /* Activate edit mode on value node */
+            else if (item->kind == MENU_NODE_VALUE && item->user) {
+                st->edit = true;
+                st->dirty = true;
+            }
+            else if (item->cb) {
+                // TODO: Action node with callback??
+                (void)item->cb(MENU_CMD_SELECT, 0, item->user);
             }
             break;
         }
-
+        
         case KEY_ESC:
-        {
             if (st->depth > 1) {
                 /* Go up one folder */
                 st->depth--;
@@ -173,11 +218,41 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
                 ui_pop_screen();
             }
             break;
+        
+        default:
+            break;
         }
+    } else {
+        /* ---------- EDIT MODE ----------*/
+        const MenuItem *item = &menu->children[frame->pos];
+        MenuValueBinding *b = (item->kind == MENU_NODE_VALUE && item->user)
+                              ? (MenuValueBinding *)item->user
+                              : NULL;
+        switch (key)
+        {
+        case KEY_UP:
+        case KEY_DOWN:
+            if (b) {
+                bool inc = (key == KEY_UP);
+                menu_value_adjust(b, inc);
+                st->dirty = true;
+            }
+            break;
+        
+        case KEY_ENTER:
+            // Accept edit; leave edit mode
+            st->edit  = false;
+            st->dirty = true;
+            break;
+
+        case KEY_ESC:
+            // For now: also leave edit mode
+            // TODO: restore previous value
+            st->edit  = false;
+            st->dirty = true;
+            break;
 
         default:
-        {
-            /* Ignore other keys for now */
             break;
         }
     }
@@ -242,14 +317,30 @@ static void menu_draw(UiScreen *self)
         
         color_t text_color = color_white;
 
+        /* Highlight if selected */
         if (idx == frame->pos)
         {
             text_color = color_black;
+            bool full_rect = true;
+            /* If in edit mode, draw a hollow rectangle */
+            if(st->edit)
+            {
+                text_color = color_white;
+                full_rect = false;
+            }
             point_t rect_pos = {0, pos.y - menu_h + 3};
-            gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH, menu_h, color_white, true);
+            gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH, menu_h, color_white, full_rect);
             // announceMenuItemIfNeeded()
         }
         gfx_print(pos, menu_font, TEXT_ALIGN_LEFT, text_color, label);
+
+        /* Value on the right if this is a VALUE node */
+        if (item->kind == MENU_NODE_VALUE && item->user) {
+            // TODO: Evaluate value buffer size
+            char buf[16];
+            menu_value_format((const MenuValueBinding *)item->user, buf, sizeof buf);
+            gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, buf);
+        }
         pos.y += menu_h;
     }
 

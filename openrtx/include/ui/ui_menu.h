@@ -41,4 +41,16 @@ void ui_menu_open_root(void);
 /* Root menu entry point (global tree) */
 extern const MenuItem g_root_menu;
 
+typedef enum {
+    MENU_VAL_BOOL,
+    // TODO: more later: MENU_VAL_I32, MENU_VAL_ENUM, etc.
+} MenuValueKind;
+
+typedef struct {
+    MenuValueKind kind;
+    void         *ptr;  // pointer to the underlying value
+
+    void (*on_change)(void *ptr); // optional side-effect on change
+} MenuValueBinding;
+
 #endif
