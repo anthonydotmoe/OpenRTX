@@ -80,6 +80,7 @@ ui_src_default = ['openrtx/src/ui/default/ui.c',
                   'openrtx/src/ui/new/ui_core.c',
                   'openrtx/src/ui/new/ui_compat.c',
                   'openrtx/src/ui/new/ui_menu.c',
+                  'openrtx/src/ui/new/ui_settings_display.c',
                   'openrtx/src/ui/new/ui_menu_tree.c',
                   'openrtx/src/ui/default/ui_strings.c']
 
@@ -346,7 +347,7 @@ linux_l_args   = ['-lm', '-lreadline']
 if build_machine.system() == 'darwin'
   linux_l_args += '-Wl,-dead_strip'
 else
-  linux_l_args += '-Wl,--gc-sections'
+  #linux_l_args += '-Wl,--gc-sections'
 endif
 
 # Add AddressSanitizer if required

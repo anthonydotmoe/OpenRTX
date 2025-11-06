@@ -182,7 +182,7 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
             break;
 
         case KEY_ENTER: {
-            const MenuItem *item = &menu->children[frame->pos];
+            const MenuItem *item = menu->children[frame->pos];
 
             /* Enter non-empty folder*/
             if (item->kind == MENU_NODE_FOLDER && item->child_count > 0 && item->children != NULL) {
@@ -224,7 +224,7 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
         }
     } else {
         /* ---------- EDIT MODE ----------*/
-        const MenuItem *item = &menu->children[frame->pos];
+        const MenuItem *item = menu->children[frame->pos];
         MenuValueBinding *b = (item->kind == MENU_NODE_VALUE && item->user)
                               ? (MenuValueBinding *)item->user
                               : NULL;
@@ -312,7 +312,7 @@ static void menu_draw(UiScreen *self)
 
     for(int idx = first; idx < first + MENU_VISIBLE_ROWS && idx < count; ++idx)
     {
-        const MenuItem *item = &menu->children[idx];
+        const MenuItem *item = menu->children[idx];
         const char *label    = item->label ? item->label : "";
         
         color_t text_color = color_white;

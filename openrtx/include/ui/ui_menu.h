@@ -24,12 +24,12 @@ typedef int (*MenuCb)(MenuCmd cmd, int arg, void *user);
 
 typedef struct MenuItem MenuItem;
 struct MenuItem {
-    MenuNodeKind        kind;
-    const char         *label;
-    uint8_t             child_count;
-    const MenuItem     *children;       // only for FOLDER
-    MenuCb              cb;             // for values/actions
-    void               *user;
+    MenuNodeKind           kind;
+    const char            *label;
+    uint8_t                child_count;
+    const MenuItem *const *children;       // only for FOLDER
+    MenuCb                 cb;             // for values/actions
+    void                  *user;
 };
 
 /* The menu screen itself */
