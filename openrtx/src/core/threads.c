@@ -35,10 +35,16 @@
 #include "core/backup.h"
 #include "core/gps.h"
 #include "core/voicePrompts.h"
+#include "ui/ui_screen.h"
+#include "ui/ui_new.h"
 
 #if defined(PLATFORM_TTWRPLUS)
 #include "pmu.h"
 #endif
+
+/* from ui_compat.c */
+extern UiScreen *ui_get_compat_screen(void);
+extern void     *ui_get_compat_state(void); //  returns CompatState*
 
 /* Mutex for concurrent access to RTX state variable */
 pthread_mutex_t rtx_mutex;
@@ -50,10 +56,9 @@ void *ui_threadFunc(void *arg)
 {
     (void) arg;
 
-    kbd_msg_t   kbd_msg;
-    rtxStatus_t rtx_cfg = { 0 };
-    bool        sync_rtx = true;
-    long long   time     = 0;
+    kbd_msg_t       kbd_msg;
+    rtxStatus_t     rtx_cfg = { 0 };
+    long long       time     = 0;
 
     // Load initial state and update the UI
     ui_saveState();
@@ -63,57 +68,89 @@ void *ui_threadFunc(void *arg)
     sleepFor(1u, 0u);
     gfx_render();
 
+    // Initialize the new screen system with the legacy-compat screen on the stack
+    ui_push_screen(ui_get_compat_screen());
+
     while(state.devStatus != SHUTDOWN)
     {
         time = getTick();
 
+        // Keyboard -> UI event
+        bool have_ev = false;
+        UiEvent ev;
+
         if(input_scanKeyboard(&kbd_msg))
         {
+            // Feed the old event path for the legacy FSM (ui_updateFSM)
             ui_pushEvent(EVENT_KBD, kbd_msg.value);
+
+            // Build a UiEvent for new-style screens
+            if(ui_build_event_from_kbd(&kbd_msg, &ev))
+            {
+                have_ev = true;
+            }
         }
 
+        // Run the active screen's FSM under state_mutex
         pthread_mutex_lock(&state_mutex);   // Lock r/w access to radio state
-        ui_updateFSM(&sync_rtx);            // Update UI FSM
-        ui_saveState();                     // Save local state copy
+
+        // sync_rtx handling stays as it is for now (compat screen still sets it)
+        UiScreen *scr = ui_current_screen();
+        if (scr != NULL)
+        {
+            scr->tick(scr, have_ev ? &ev : NULL);
+            ui_saveState(); // Keep using existing snapshot mechanism
+        }
+
         pthread_mutex_unlock(&state_mutex); // Unlock r/w access to radio state
 
         vp_tick();                           // continue playing voice prompts in progress if any.
 
         // If synchronization needed take mutex and update RTX configuration
-        if(sync_rtx)
+        // The compat screen owns the sync flag (CompatState.sync_rtx)
         {
-            pthread_mutex_lock(&rtx_mutex);
-            rtx_cfg.opMode      = state.channel.mode;
-            rtx_cfg.bandwidth   = state.channel.bandwidth;
-            rtx_cfg.rxFrequency = state.channel.rx_frequency;
-            rtx_cfg.txFrequency = state.channel.tx_frequency;
-            rtx_cfg.txPower     = state.channel.power;
-            rtx_cfg.sqlLevel    = state.settings.sqlLevel;
-            rtx_cfg.rxToneEn    = state.channel.fm.rxToneEn;
-            rtx_cfg.rxTone      = ctcss_tone[state.channel.fm.rxTone];
-            rtx_cfg.txToneEn    = state.channel.fm.txToneEn;
-            rtx_cfg.txTone      = ctcss_tone[state.channel.fm.txTone];
-            rtx_cfg.toneEn      = state.tone_enabled;
+            typedef struct {
+                bool sync_rtx;
+            } CompatState;
 
-            // Enable Tx if channel allows it and we are in UI main screen
-            rtx_cfg.txDisable = state.channel.rx_only || state.txDisable;
+            CompatState *cst = (CompatState *)ui_get_compat_state();
 
-            // Copy new M17 CAN, source and destination addresses
-            rtx_cfg.can = state.settings.m17_can;
-            rtx_cfg.canRxEn = state.settings.m17_can_rx;
-            strncpy(rtx_cfg.source_address,      state.settings.callsign, 10);
-            strncpy(rtx_cfg.destination_address, state.settings.m17_dest, 10);
+            if(cst && cst->sync_rtx)
+            {
+                pthread_mutex_lock(&rtx_mutex);
 
-            pthread_mutex_unlock(&rtx_mutex);
+                rtx_cfg.opMode      = state.channel.mode;
+                rtx_cfg.bandwidth   = state.channel.bandwidth;
+                rtx_cfg.rxFrequency = state.channel.rx_frequency;
+                rtx_cfg.txFrequency = state.channel.tx_frequency;
+                rtx_cfg.txPower     = state.channel.power;
+                rtx_cfg.sqlLevel    = state.settings.sqlLevel;
+                rtx_cfg.rxToneEn    = state.channel.fm.rxToneEn;
+                rtx_cfg.rxTone      = ctcss_tone[state.channel.fm.rxTone];
+                rtx_cfg.txToneEn    = state.channel.fm.txToneEn;
+                rtx_cfg.txTone      = ctcss_tone[state.channel.fm.txTone];
+                rtx_cfg.toneEn      = state.tone_enabled;
 
-            rtx_configure(&rtx_cfg);
-            sync_rtx = false;
+                // Enable Tx if channel allows it and we are in UI main screen
+                rtx_cfg.txDisable = state.channel.rx_only || state.txDisable;
+
+                // Copy new M17 CAN, source and destination addresses
+                rtx_cfg.can = state.settings.m17_can;
+                rtx_cfg.canRxEn = state.settings.m17_can_rx;
+                strncpy(rtx_cfg.source_address,      state.settings.callsign, 10);
+                strncpy(rtx_cfg.destination_address, state.settings.m17_dest, 10);
+
+                pthread_mutex_unlock(&rtx_mutex);
+
+                rtx_configure(&rtx_cfg);
+                cst->sync_rtx = false;
+            }
         }
 
-        // Update UI and render on screen, if necessary
-        if(ui_updateGUI() == true)
+        // Draw the active screen
+        if(scr != NULL)
         {
-            gfx_render();
+            scr->draw(scr);
         }
 
         // 40Hz update rate for keyboard and UI

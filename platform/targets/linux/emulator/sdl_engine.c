@@ -108,6 +108,10 @@ static bool sdk_key_code_to_key(SDL_Keycode sym, keyboard_t *key)
         case SDLK_m:
             *key = KEY_MONI;
             return true;
+        
+        case SDLK_b:
+            *key = KEY_F3;
+            return true;
 
         case SDLK_PAGEUP:
             *key = KNOB_LEFT;

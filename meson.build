@@ -77,6 +77,10 @@ openrtx_inc = ['openrtx/include', 'platform']
 ui_src_default = ['openrtx/src/ui/default/ui.c',
                   'openrtx/src/ui/default/ui_main.c',
                   'openrtx/src/ui/default/ui_menu.c',
+                  'openrtx/src/ui/new/ui_core.c',
+                  'openrtx/src/ui/new/ui_compat.c',
+                  'openrtx/src/ui/new/ui_menu.c',
+                  'openrtx/src/ui/new/ui_menu_tree.c',
                   'openrtx/src/ui/default/ui_strings.c']
 
 ui_src_module17 = ['openrtx/src/ui/module17/ui.c',
@@ -878,7 +882,7 @@ targets = [
     'opts'     : cs7000p_opts,
     'flashable': true,
     'wrap'     : ' ',
-    'load_addr': '0x08100000'
+    'load_addr': '0x08000000'
   },
   {
     'name'     : 'dm1701',
