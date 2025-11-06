@@ -29,6 +29,23 @@
 
 static bool gpsEnabled = false;
 
+#ifdef CONFIG_RTC
+static bool rtcSyncDone = false;
+static void syncRtc(datetime_t timestamp)
+{
+    if(state.settings.gpsSetTime == false) {
+        rtcSyncDone = false;
+        return;
+    }
+
+    if(rtcSyncDone)
+        return;
+
+    platform_setTime(timestamp);
+    rtcSyncDone = true;
+}
+#endif
+
 void gps_task(const struct gpsDevice *dev)
 {
     char sentence[2*MINMEA_MAX_LENGTH];
@@ -73,8 +90,6 @@ void gps_task(const struct gpsDevice *dev)
             struct minmea_sentence_rmc frame;
             if (minmea_parse_rmc(&frame, sentence))
             {
-                gps_data.latitude = minmea_tofixedpoint(&frame.latitude);
-                gps_data.longitude = minmea_tofixedpoint(&frame.longitude);
                 gps_data.timestamp.hour = frame.time.hours;
                 gps_data.timestamp.minute = frame.time.minutes;
                 gps_data.timestamp.second = frame.time.seconds;
@@ -82,9 +97,12 @@ void gps_task(const struct gpsDevice *dev)
                 gps_data.timestamp.date = frame.date.day;
                 gps_data.timestamp.month = frame.date.month;
                 gps_data.timestamp.year = frame.date.year;
+                gps_data.speed = KNOTS2KMH(minmea_toint(&frame.speed));
+                #ifdef CONFIG_RTC
+                if(frame.valid)
+                    syncRtc(gps_data.timestamp);
+                #endif
             }
-
-            gps_data.speed = KNOTS2KMH(minmea_toint(&frame.speed));
         }
         break;
 
@@ -93,6 +111,8 @@ void gps_task(const struct gpsDevice *dev)
             struct minmea_sentence_gga frame;
             if (minmea_parse_gga(&frame, sentence))
             {
+                gps_data.latitude = minmea_tofixedpoint(&frame.latitude);
+                gps_data.longitude = minmea_tofixedpoint(&frame.longitude);
                 gps_data.fix_quality = frame.fix_quality;
                 gps_data.satellites_tracked = frame.satellites_tracked;
                 gps_data.altitude = minmea_toint(&frame.altitude);
@@ -110,7 +130,7 @@ void gps_task(const struct gpsDevice *dev)
                 gps_data.fix_type = frame.fix_type;
                 for (int i = 0; i < 12; i++)
                 {
-                    if (frame.sats[i] != 0)
+                    if (frame.sats[i] != 0 && frame.sats[i] < 31)
                     {
                         gps_data.active_sats |= 1 << (frame.sats[i] - 1);
                     }
@@ -172,20 +192,4 @@ void gps_task(const struct gpsDevice *dev)
     pthread_mutex_lock(&state_mutex);
     state.gps_data = gps_data;
     pthread_mutex_unlock(&state_mutex);
-
-    // Synchronize RTC with GPS UTC clock, only when fix is done
-    #ifdef CONFIG_RTC
-    if(state.gps_set_time)
-    {
-        if((sId == MINMEA_SENTENCE_RMC) && (gps_data.fix_quality > 0))
-        {
-            platform_setTime(gps_data.timestamp);
-
-            // Done, clear the flag
-            pthread_mutex_lock(&state_mutex);
-            state.gps_set_time = false;
-            pthread_mutex_unlock(&state_mutex);
-        }
-    }
-    #endif
 }

@@ -94,7 +94,7 @@ const stringsTable_t spanishStrings =
     .usedHeap          = "Memoria heap usada",
     .broadcast         = "TODOS",
     .radioSettings     = "Ajustes de Radio",
-    .frequencyOffset   = "Offset de frecuencia",
+    .offset            = "Offset",
     .macroLatching     = "Macro Latching",
     .noGps             = "Ningún GPS",
     .batteryIcon       = "Icon de batteria",
@@ -103,6 +103,9 @@ const stringsTable_t spanishStrings =
     .Encode            = "Codificar",
     .Decode            = "Decodificar",
     .Both              = "Ambos",
-    .None              = "Ni"
+    .None              = "Ni",
+    .direction         = "Dirección",
+    .step              = "Paso",
+    .radio             = "Radio",
 };
 #endif  // SPANISHSTRINGS_H

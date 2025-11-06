@@ -93,15 +93,18 @@ const stringsTable_t englishStrings =
     .usedHeap          = "Used heap",
     .broadcast         = "ALL",
     .radioSettings     = "Radio Settings",
-    .frequencyOffset   = "Frequency Offset",
+    .offset            = "Offset",
     .macroLatching     = "Macro Latch",
     .noGps             = "No GPS",
     .batteryIcon       = "Battery Icon",
-    .CTCSSTone         = "CTCSS Frequency",
+    .CTCSSTone         = "CTCSS Tone",
     .CTCSSEn           = "CTCSS En.",
     .Encode            = "Encode",
     .Decode            = "Decode",
     .Both              = "Both",
-    .None              = "None"
+    .None              = "None",
+    .direction         = "Direction",
+    .step              = "Step",
+    .radio             = "Radio",
 };
 #endif  // ENGLISHSTRINGS_H
