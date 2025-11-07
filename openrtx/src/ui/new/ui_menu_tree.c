@@ -6,13 +6,15 @@
 
 /* include menu items here, gate with compile flags */
 
-/* from ui_settings_display.c */
+/* from ui_settings_*.c */
 extern const MenuItem g_display_settings_menu;
 extern const MenuItem g_gps_settings_menu;
+extern const MenuItem g_accessibility_settings_menu;
 
 static const MenuItem *const settings_children[] = {
     &g_display_settings_menu,
     &g_gps_settings_menu,
+    &g_accessibility_settings_menu,
 };
 
 static const MenuItem m_banks    = { MENU_NODE_FOLDER, "Banks",    0, NULL, NULL, NULL };

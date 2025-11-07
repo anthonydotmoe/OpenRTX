@@ -81,6 +81,7 @@ ui_src_default = ['openrtx/src/ui/default/ui.c',
                   'openrtx/src/ui/new/ui_core.c',
                   'openrtx/src/ui/new/ui_compat.c',
                   'openrtx/src/ui/new/ui_menu.c',
+                  'openrtx/src/ui/new/ui_settings_accessibility.c',
                   'openrtx/src/ui/new/ui_settings_display.c',
                   'openrtx/src/ui/new/ui_settings_gps.c',
                   'openrtx/src/ui/new/ui_menu_tree.c']
