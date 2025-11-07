@@ -4,36 +4,58 @@
 #include "ui/ui_menu.h"
 #include "ui/ui_menu_dsl.h"
 #include "core/state.h"
+#include "interfaces/display.h"
 
-static void battery_icon_on_change(void *ptr)
-{
-    (void)ptr;
-    /* TODO: do something */
+#ifdef CONFIG_SCREEN_BRIGHTNESS
+static void brightness_on_change(void *ptr) {
+    uint8_t *p = (uint8_t *)ptr;
+    display_setBacklightLevel(*p);
 }
 
-static MenuValueBinding battery_icon_binding = {
-    .kind      = MENU_VAL_BOOL,
-    .ptr       = &state.settings.showBatteryIcon,
-    .on_change = battery_icon_on_change,
+static MenuValueBinding brightness_binding = {
+    .kind      = MENU_VAL_U8,
+    .ptr       = &state.settings.brightness,
+    .u.u8      = { .min = 0, .max = 100, .step = 5, .wrap = false },
+    .on_change = brightness_on_change,
 };
 
-/* Leaf nodes */
 static const MenuItem m_brightness = {
     .kind        = MENU_NODE_VALUE,
     .label       = "Brightness",
     .child_count = 0,
     .children    = NULL,
     .cb          = NULL,
-    .user        = NULL,
+    .user        = &brightness_binding,
+};
+#endif
+
+#ifdef CONFIG_SCREEN_CONTRAST
+static void contrast_on_change(void *ptr) {
+    uint8_t *p = (uint8_t *)ptr;
+    display_setContrast(*p);
+}
+
+static MenuValueBinding contrast_binding = {
+    .kind      = MENU_VAL_U8,
+    .ptr       = &state.settings.contrast,
+    .u.u8      = { .min = 0, .max = 255, .step = 4, .wrap = false },
+    .on_change = contrast_on_change,
 };
 
-static const MenuItem m_timer = {
+static const MenuItem m_contrast = {
     .kind        = MENU_NODE_VALUE,
-    .label       = "Timer",
+    .label       = "Contrast",
     .child_count = 0,
     .children    = NULL,
     .cb          = NULL,
-    .user        = NULL,
+    .user        = &contrast_binding,
+};
+#endif
+
+static MenuValueBinding battery_icon_binding = {
+    .kind      = MENU_VAL_BOOL,
+    .ptr       = &state.settings.showBatteryIcon,
+    .on_change = NULL,
 };
 
 static const MenuItem m_battery_icon = {
@@ -45,9 +67,23 @@ static const MenuItem m_battery_icon = {
     .user        = &battery_icon_binding,
 };
 
+static const MenuItem m_timer = {
+    .kind        = MENU_NODE_VALUE,
+    .label       = "Timer",
+    .child_count = 0,
+    .children    = NULL,
+    .cb          = NULL,
+    .user        = NULL,
+};
+
 /* Pointer array of children for this folder */
 static const MenuItem *const display_children[] = {
+#ifdef CONFIG_SCREEN_BRIGHTNESS
     &m_brightness,
+#endif
+#ifdef CONFIG_SCREEN_CONTRAST
+    &m_contrast,
+#endif
     &m_timer,
     &m_battery_icon,
 };

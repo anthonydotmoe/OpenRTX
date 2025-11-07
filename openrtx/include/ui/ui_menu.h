@@ -43,12 +43,20 @@ extern const MenuItem g_root_menu;
 
 typedef enum {
     MENU_VAL_BOOL,
-    // TODO: more later: MENU_VAL_I32, MENU_VAL_ENUM, etc.
+    MENU_VAL_I32,
+    MENU_VAL_U8,
+    MENU_VAL_ENUM,
 } MenuValueKind;
 
 typedef struct {
     MenuValueKind kind;
     void         *ptr;  // pointer to the underlying value
+
+    union {
+        struct { int32_t min, max, step;   bool wrap; } i32;
+        struct { uint8_t min, max, step;   bool wrap; } u8;
+        struct { const char *const *names; uint8_t count; } enm;
+    } u;
 
     void (*on_change)(void *ptr); // optional side-effect on change
 } MenuValueBinding;

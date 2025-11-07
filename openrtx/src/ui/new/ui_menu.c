@@ -16,8 +16,6 @@
 
 static void menu_value_adjust(MenuValueBinding *b, bool inc)
 {
-    (void)inc; // unused for bool; kept for future symmetry
-
     if (!b || !b->ptr) {
         return;
     }
@@ -26,6 +24,81 @@ static void menu_value_adjust(MenuValueBinding *b, bool inc)
         case MENU_VAL_BOOL: {
             bool *p = (bool *)b->ptr;
             *p = !*p;
+            break;
+        }
+        case MENU_VAL_U8: {
+            uint8_t *p = (uint8_t *)b->ptr;
+            uint8_t v = *p;
+
+            uint8_t min  = b->u.u8.min;
+            uint8_t max  = b->u.u8.max;
+            uint8_t step = b->u.u8.step;
+            bool    wrap = b->u.u8.wrap;
+
+            /* TODO: Evaluate responsibility
+            // Sanity check: if min > max, swap
+            if (min > max) {
+                uint8_t tmp = min;
+                min = max;
+                max = tmp;
+            }
+            
+            if (step == 0) {
+                step = 1;
+            }
+            */
+
+            // Normalize any out-of-range value
+            if (v < min) {
+                v = min;
+            } else if (v > max) {
+                v = max;
+            }
+
+            if (inc) {
+                // Increment
+                if (v >= max) {
+                    if (wrap) {
+                        v = min;
+                    } else {
+                        v = max;
+                    }
+                } else {
+                    // Do arithmetic in a wider type to avoid overflow
+                    unsigned int tmp = (unsigned int)v + (unsigned int)step;
+                    if (tmp > max) {
+                        if (wrap) {
+                            v = min;
+                        } else {
+                            v = max;
+                        }
+                    } else {
+                        v = (uint8_t)tmp;
+                    }
+                }
+            } else {
+                // Decrement
+                if (v <= min) {
+                    if (wrap) {
+                        v = max;
+                    } else {
+                        v = min;
+                    }
+                } else {
+                    int tmp = (int)v - (int)step;
+                    if (tmp < (int)min) {
+                        if (wrap) {
+                            v = max;
+                        } else {
+                            v = min;
+                        }
+                    } else {
+                        v = (uint8_t)tmp;
+                    }
+                }
+            }
+            
+            *p = v;
             break;
         }
         default:
@@ -47,6 +120,11 @@ static void menu_value_format(const MenuValueBinding *b, char *buf, size_t n)
         case MENU_VAL_BOOL: {
             bool v = *(bool *)b->ptr;
             sniprintf(buf, n, "%s", v ? "On" : "Off");
+            break;
+        }
+        case MENU_VAL_U8: {
+            uint8_t v = *(uint8_t *)b->ptr;
+            sniprintf(buf, n, "%u", v);
             break;
         }
         default:
