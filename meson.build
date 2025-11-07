@@ -77,12 +77,13 @@ openrtx_inc = ['openrtx/include', 'platform']
 ui_src_default = ['openrtx/src/ui/default/ui.c',
                   'openrtx/src/ui/default/ui_main.c',
                   'openrtx/src/ui/default/ui_menu.c',
+                  'openrtx/src/ui/default/ui_strings.c',
                   'openrtx/src/ui/new/ui_core.c',
                   'openrtx/src/ui/new/ui_compat.c',
                   'openrtx/src/ui/new/ui_menu.c',
                   'openrtx/src/ui/new/ui_settings_display.c',
-                  'openrtx/src/ui/new/ui_menu_tree.c',
-                  'openrtx/src/ui/default/ui_strings.c']
+                  'openrtx/src/ui/new/ui_settings_gps.c',
+                  'openrtx/src/ui/new/ui_menu_tree.c']
 
 ui_src_module17 = ['openrtx/src/ui/module17/ui.c',
                    'openrtx/src/ui/module17/ui_main.c',
