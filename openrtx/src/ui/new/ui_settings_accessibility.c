@@ -22,8 +22,9 @@ static const MenuItem m_macro_latch = {
     .label       = "Macro Latch",
     .child_count = 0,
     .children    = NULL,
+    .binding     = &macro_latch_binding,
     .cb          = NULL,
-    .user        = &macro_latch_binding,
+    .cb_ctx      = NULL,
 };
 
 static MenuValueBinding voice_binding = {
@@ -33,12 +34,13 @@ static MenuValueBinding voice_binding = {
 };
 
 static const MenuItem m_voice = {
-    .kind        = MENU_NODE_VALUE,
+    .kind        = MENU_NODE_UNIMPLEMENTED,
     .label       = "Voice",
     .child_count = 0,
     .children    = NULL,
+    .binding     = &voice_binding,
     .cb          = NULL,
-    .user        = &voice_binding,
+    .cb_ctx      = NULL,
 };
 
 static MenuValueBinding phonetic_binding = {
@@ -48,12 +50,13 @@ static MenuValueBinding phonetic_binding = {
 };
 
 static const MenuItem m_phonetic = {
-    .kind        = MENU_NODE_VALUE,
+    .kind        = MENU_NODE_UNIMPLEMENTED,
     .label       = "Phonetic",
     .child_count = 0,
     .children    = NULL,
+    .binding     = &phonetic_binding,
     .cb          = NULL,
-    .user        = &phonetic_binding,
+    .cb_ctx      = NULL,
 };
 
 static const MenuItem *const accessibility_children[] = {
@@ -63,10 +66,11 @@ static const MenuItem *const accessibility_children[] = {
 };
 
 const MenuItem g_accessibility_settings_menu = {
-    .kind           = MENU_NODE_FOLDER,
-    .label          = "Accessibility",
-    .child_count    = ARRAY_LEN(accessibility_children),
-    .children       = accessibility_children,
-    .cb             = NULL,
-    .user           = NULL,
+    .kind        = MENU_NODE_FOLDER,
+    .label       = "Accessibility",
+    .child_count = ARRAY_LEN(accessibility_children),
+    .children    = accessibility_children,
+    .binding     = NULL,
+    .cb          = NULL,
+    .cb_ctx      = NULL,
 };

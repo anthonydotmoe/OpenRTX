@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h> // for NULL
+#include <inttypes.h>
 
 #include "ui/ui_menu.h"
 #include "ui/ui_screen.h"
@@ -14,7 +15,7 @@
 /* How many rows we plan to show at once; for scrolling logic */
 #define MENU_VISIBLE_ROWS 6
 
-static void menu_value_adjust(MenuValueBinding *b, bool inc)
+static void menu_value_adjust(const MenuValueBinding *b, bool inc)
 {
     if (!b || !b->ptr) {
         return;
@@ -122,9 +123,14 @@ static void menu_value_format(const MenuValueBinding *b, char *buf, size_t n)
             sniprintf(buf, n, "%s", v ? "On" : "Off");
             break;
         }
+        case MENU_VAL_I32: {
+            int32_t v = *(int32_t *)b->ptr;
+            sniprintf(buf, n, "%"PRIi32, v);
+            break;
+        }
         case MENU_VAL_U8: {
             uint8_t v = *(uint8_t *)b->ptr;
-            sniprintf(buf, n, "%u", v);
+            sniprintf(buf, n, "%"PRIu8, v);
             break;
         }
         default:
@@ -275,13 +281,14 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
                 }
             }
             /* Activate edit mode on value node */
-            else if (item->kind == MENU_NODE_VALUE && item->user) {
-                st->edit = true;
+            else if (item->kind == MENU_NODE_VALUE && item->binding) {
+                st->edit  = true;
                 st->dirty = true;
             }
-            else if (item->cb) {
-                // TODO: Action node with callback??
-                (void)item->cb(MENU_CMD_SELECT, 0, item->user);
+            else if (item->kind == MENU_NODE_VALUE && item->cb) {
+                item->cb(MENU_CMD_EDIT_BEGIN, NULL, item->cb_ctx);
+                st->edit  = true;
+                st->dirty = true;
             }
             break;
         }
@@ -303,36 +310,40 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
     } else {
         /* ---------- EDIT MODE ----------*/
         const MenuItem *item = menu->children[frame->pos];
-        MenuValueBinding *b = (item->kind == MENU_NODE_VALUE && item->user)
-                              ? (MenuValueBinding *)item->user
-                              : NULL;
-        switch (key)
-        {
-        case KEY_UP:
-        case KEY_DOWN:
-            if (b) {
-                bool inc = (key == KEY_UP);
-                menu_value_adjust(b, inc);
-                st->dirty = true;
-            }
-            break;
         
-        case KEY_ENTER:
-            // Accept edit; leave edit mode
-            st->edit  = false;
-            st->dirty = true;
-            break;
+        if (item->binding) {
+            /* Generic value */
+            bool inc = (key == KEY_UP);
+            bool dec = (key == KEY_DOWN);
 
-        case KEY_ESC:
-            // For now: also leave edit mode
-            // TODO: restore previous value
-            st->edit  = false;
-            st->dirty = true;
-            break;
-
-        default:
-            break;
+            if ((item->kind == MENU_NODE_VALUE) && (inc || dec)) {
+                menu_value_adjust(item->binding, inc);
+                st->dirty = true;
+                return;
+            }
         }
+
+        if (item->cb) {
+            /* Let callback handle keys in edit mode */
+            item->cb(MENU_CMD_EDIT_KEY, (void *)ev, item->cb_ctx);
+            st->dirty = true;
+        }
+
+        if (key == KEY_ESC) {
+            if (item->cb) {
+                item->cb(MENU_CMD_EDIT_CANCEL, NULL, item->cb_ctx);
+            }
+            st->edit  = false;
+            st->dirty = true;
+        } else if (key == KEY_ENTER) {
+            if (item->cb) {
+                item->cb(MENU_CMD_EDIT_APPLY, NULL, item->cb_ctx);
+            }
+            st->edit  = false;
+            st->dirty = true;
+        }
+
+        return;
     }
 }
 
@@ -413,11 +424,29 @@ static void menu_draw(UiScreen *self)
         gfx_print(pos, menu_font, TEXT_ALIGN_LEFT, text_color, label);
 
         /* Value on the right if this is a VALUE node */
-        if (item->kind == MENU_NODE_VALUE && item->user) {
+        if (item->kind == MENU_NODE_VALUE) {
             // TODO: Evaluate value buffer size
-            char buf[16];
-            menu_value_format((const MenuValueBinding *)item->user, buf, sizeof buf);
-            gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, buf);
+            char buf[16] = {0};
+
+            if (item->binding) {
+                /* Generic value binding */
+                menu_value_format((const MenuValueBinding *)item->binding, buf, sizeof buf);
+            } else if (item->cb) {
+                /* Custom value: let the callback format it */
+                MenuDrawValueArgs args = {
+                    .buf     = buf,
+                    .buf_len = sizeof buf
+                };
+                item->cb(MENU_CMD_DRAW_VALUE, &args, item->cb_ctx);
+            }
+            if (buf[0] != '\0') {
+                gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, buf);
+            }
+        }
+
+        /* Show if node is unimplemented */
+        if (item->kind == MENU_NODE_UNIMPLEMENTED) {
+            gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, ":(");
         }
         pos.y += menu_h;
     }

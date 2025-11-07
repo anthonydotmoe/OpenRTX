@@ -24,8 +24,9 @@ static const MenuItem m_brightness = {
     .label       = "Brightness",
     .child_count = 0,
     .children    = NULL,
+    .binding     = &brightness_binding,
     .cb          = NULL,
-    .user        = &brightness_binding,
+    .cb_ctx      = NULL,
 };
 #endif
 
@@ -47,10 +48,21 @@ static const MenuItem m_contrast = {
     .label       = "Contrast",
     .child_count = 0,
     .children    = NULL,
+    .binding     = &contrast_binding,
     .cb          = NULL,
-    .user        = &contrast_binding,
+    .cb_ctx      = NULL,
 };
 #endif
+
+static const MenuItem m_timer = {
+    .kind        = MENU_NODE_UNIMPLEMENTED,
+    .label       = "Timer",
+    .child_count = 0,
+    .children    = NULL,
+    .binding     = NULL,
+    .cb          = NULL,
+    .cb_ctx      = NULL,
+};
 
 static MenuValueBinding battery_icon_binding = {
     .kind      = MENU_VAL_BOOL,
@@ -63,17 +75,9 @@ static const MenuItem m_battery_icon = {
     .label       = "Battery Icon",
     .child_count = 0,
     .children    = NULL,
+    .binding     = &battery_icon_binding,
     .cb          = NULL,
-    .user        = &battery_icon_binding,
-};
-
-static const MenuItem m_timer = {
-    .kind        = MENU_NODE_VALUE,
-    .label       = "Timer",
-    .child_count = 0,
-    .children    = NULL,
-    .cb          = NULL,
-    .user        = NULL,
+    .cb_ctx      = NULL,
 };
 
 /* Pointer array of children for this folder */
@@ -89,10 +93,11 @@ static const MenuItem *const display_children[] = {
 };
 
 const MenuItem g_display_settings_menu = {
-    .kind           = MENU_NODE_FOLDER,
-    .label          = "Display",
-    .child_count    = ARRAY_LEN(display_children),
-    .children       = display_children,
-    .cb             = NULL,
-    .user           = NULL,
+    .kind        = MENU_NODE_FOLDER,
+    .label       = "Display",
+    .child_count = ARRAY_LEN(display_children),
+    .children    = display_children,
+    .binding     = NULL,
+    .cb          = NULL,
+    .cb_ctx      = NULL,
 };
