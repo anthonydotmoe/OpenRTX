@@ -7,15 +7,8 @@
 
 #include "core/state.h"
 
-static const MenuItem m_fm_ctcss_tone = {
-    .kind        = MENU_NODE_UNIMPLEMENTED,
-    .label       = "CTCSS Tone",
-    .child_count = 0,
-    .children    = NULL,
-    .binding     = NULL,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+static const MenuItem m_fm_ctcss_tone =
+    MENU_ITEM_UNIMPLEMENTED("CTCSS Tone");
 
 typedef enum {
     CTC_EN_NONE = 0,
@@ -115,27 +108,13 @@ static int fm_ctcss_en_cb(MenuCmd cmd, void *arg, void *cb_ctx)
     return 0;
 }
 
-static const MenuItem m_fm_ctcss_en = {
-    .kind        = MENU_NODE_VALUE,
-    .label       = "CTCSS En.",
-    .child_count = 0,
-    .children    = NULL,
-    .binding     = NULL,
-    .cb          = fm_ctcss_en_cb,
-    .cb_ctx      = NULL,
-};
+static const MenuItem m_fm_ctcss_en =
+    MENU_ITEM_VALUE_CB("CTCSS En.", fm_ctcss_en_cb, NULL);
 
 static const MenuItem *const fm_children[] = {
     &m_fm_ctcss_tone,
     &m_fm_ctcss_en,
 };
 
-const MenuItem g_fm_settings_menu = {
-    .kind        = MENU_NODE_FOLDER,
-    .label       = "FM",
-    .child_count = ARRAY_LEN(fm_children),
-    .children    = fm_children,
-    .binding     = NULL,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+const MenuItem g_fm_settings_menu =
+    MENU_FOLDER_FROM_CHILDREN("FM", fm_children);

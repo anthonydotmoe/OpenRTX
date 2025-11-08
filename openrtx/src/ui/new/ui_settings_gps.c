@@ -12,15 +12,8 @@ static MenuValueBinding gps_en_binding = {
     .on_change = NULL,
 };
 
-static const MenuItem m_gps_en = {
-    .kind        = MENU_NODE_VALUE,
-    .label       = "GPS Enabled",
-    .child_count = 0,
-    .children    = NULL,
-    .binding     = &gps_en_binding,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+static const MenuItem m_gps_en =
+    MENU_ITEM_VALUE_BINDING("GPS Enabled", &gps_en_binding);
 #endif
 
 #ifdef CONFIG_RTC
@@ -30,15 +23,8 @@ static MenuValueBinding gps_set_time_binding = {
     .on_change = NULL,
 };
 
-static const MenuItem m_gps_set_time = {
-    .kind        = MENU_NODE_VALUE,
-    .label       = "GPS Set Time",
-    .child_count = 0,
-    .children    = NULL,
-    .binding     = &gps_set_time_binding,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+static const MenuItem m_gps_set_time =
+    MENU_ITEM_VALUE_BINDING("GPS Set Time", &gps_set_time_binding);
 
 /*
 static MenuValueBinding utc_timezone_binding = {
@@ -48,15 +34,8 @@ static MenuValueBinding utc_timezone_binding = {
 };
 */
 
-static const MenuItem m_utc_timezone = {
-    .kind        = MENU_NODE_UNIMPLEMENTED,
-    .label       = "UTC Timezone",
-    .child_count = 0,
-    .children    = NULL,
-    .binding     = NULL,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+static const MenuItem m_utc_timezone =
+    MENU_ITEM_UNIMPLEMENTED("UTC Timezone");
 #endif
 
 static const MenuItem *const gps_children[] = {
@@ -69,12 +48,5 @@ static const MenuItem *const gps_children[] = {
 #endif
 };
 
-const MenuItem g_gps_settings_menu = {
-    .kind        = MENU_NODE_FOLDER,
-    .label       = "GPS",
-    .child_count = ARRAY_LEN(gps_children),
-    .children    = gps_children,
-    .binding     = NULL,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+const MenuItem g_gps_settings_menu =
+    MENU_FOLDER_FROM_CHILDREN("GPS", gps_children);

@@ -17,15 +17,8 @@ static MenuValueBinding macro_latch_binding = {
     .on_change = NULL,
 };
 
-static const MenuItem m_macro_latch = {
-    .kind        = MENU_NODE_VALUE,
-    .label       = "Macro Latch",
-    .child_count = 0,
-    .children    = NULL,
-    .binding     = &macro_latch_binding,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+static const MenuItem m_macro_latch =
+    MENU_ITEM_VALUE_BINDING("Macro Latch", &macro_latch_binding);
 
 static MenuValueBinding voice_binding = {
     .kind      = MENU_VAL_BOOL,
@@ -65,12 +58,5 @@ static const MenuItem *const accessibility_children[] = {
     &m_phonetic,
 };
 
-const MenuItem g_accessibility_settings_menu = {
-    .kind        = MENU_NODE_FOLDER,
-    .label       = "Accessibility",
-    .child_count = ARRAY_LEN(accessibility_children),
-    .children    = accessibility_children,
-    .binding     = NULL,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+const MenuItem g_accessibility_settings_menu =
+    MENU_FOLDER_FROM_CHILDREN("Accessibility", accessibility_children);

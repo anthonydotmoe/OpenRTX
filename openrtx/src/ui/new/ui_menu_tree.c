@@ -19,10 +19,10 @@ static const MenuItem *const settings_children[] = {
     &g_accessibility_settings_menu,
 };
 
-static const MenuItem m_banks    = { MENU_NODE_UNIMPLEMENTED, "Banks",    0, NULL, NULL, NULL, NULL };
-static const MenuItem m_channels = { MENU_NODE_UNIMPLEMENTED, "Channels", 0, NULL, NULL, NULL, NULL };
-static const MenuItem m_contacts = { MENU_NODE_UNIMPLEMENTED, "Contacts", 0, NULL, NULL, NULL, NULL };
-static const MenuItem m_gps      = { MENU_NODE_UNIMPLEMENTED, "GPS",      0, NULL, NULL, NULL, NULL };
+static const MenuItem m_banks    = MENU_ITEM_UNIMPLEMENTED("Banks");
+static const MenuItem m_channels = MENU_ITEM_UNIMPLEMENTED("Channels");
+static const MenuItem m_contacts = MENU_ITEM_UNIMPLEMENTED("Contacts");
+static const MenuItem m_gps      = MENU_ITEM_UNIMPLEMENTED("GPS");
 static const MenuItem m_settings = { MENU_NODE_FOLDER, "Settings",
     .child_count = ARRAY_LEN(settings_children),
     .children = settings_children,
@@ -30,8 +30,8 @@ static const MenuItem m_settings = { MENU_NODE_FOLDER, "Settings",
     .cb = NULL,
     .cb_ctx = NULL,
 };
-static const MenuItem m_info     = { MENU_NODE_UNIMPLEMENTED, "Info",     0, NULL, NULL, NULL, NULL };
-static const MenuItem m_about    = { MENU_NODE_UNIMPLEMENTED, "About",    0, NULL, NULL, NULL, NULL };
+static const MenuItem m_info     = MENU_ITEM_UNIMPLEMENTED("Info");
+static const MenuItem m_about    = MENU_ITEM_UNIMPLEMENTED("About");
 
 static const MenuItem *const root_menu_children[] = {
     &m_banks,
@@ -43,12 +43,5 @@ static const MenuItem *const root_menu_children[] = {
     &m_about,
 };
 
-const MenuItem g_root_menu = {
-    .kind           = MENU_NODE_FOLDER,
-    .label          = "Menu",
-    .child_count    = ARRAY_LEN(root_menu_children),
-    .children       = root_menu_children,
-    .binding        = NULL,
-    .cb             = NULL,
-    .cb_ctx         = NULL,
-};
+const MenuItem g_root_menu =
+    MENU_FOLDER_FROM_CHILDREN("Menu", root_menu_children);
