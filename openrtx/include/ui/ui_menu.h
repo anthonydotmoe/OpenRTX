@@ -47,11 +47,34 @@ typedef struct {
 
 typedef int (*MenuCb)(MenuCmd cmd, void *arg, void *cb_ctx);
 
+/* type mask values for MENU_VAL_STR */
+#define UI_TYPE_UPPERCASE   0x01
+#define UI_TYPE_LOWERCASE   0x02
+#define UI_TYPE_NUMBER      0x04
+#define UI_TYPE_HEX         0x08
+#define UI_TYPE_TEXT        UI_TYPE_LOWERCASE | UI_TYPE_UPPERCASE
+#define UI_TYPE_ALL         UI_TYPE_LOWERCASE | UI_TYPE_UPPERCASE | UI_TYPE_NUMBER
+
+typedef enum {
+    
+    /// @brief general text entry
+    UI_STR_PROFILE_TEXT,
+
+    /// @brief callsigns / IDs
+    UI_STR_PROFILE_CALLSIGN,
+
+    /// @brief PINs, purely digits
+    UI_STR_PROFILE_NUMERIC,
+
+    /* TODO: Maybe more later? */
+} UiStrProfile;
+
 typedef enum {
     MENU_VAL_BOOL,
     MENU_VAL_I32,
     MENU_VAL_U8,
     MENU_VAL_ENUM,
+    MENU_VAL_STR,
 } MenuValueKind;
 
 typedef struct {
@@ -63,6 +86,11 @@ typedef struct {
         struct { int32_t min, max, step;   bool wrap; } i32;
         struct { uint8_t min, max, step;   bool wrap; } u8;
         struct { const char *const *names; uint8_t count; } enm;
+        struct {
+            uint8_t      max_len;
+            //uint8_t      type_mask; TODO: Use this or `profile`?
+            UiStrProfile profile;
+        } str;
     } u;
 } MenuValueBinding;
 

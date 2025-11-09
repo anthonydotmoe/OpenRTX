@@ -9,12 +9,14 @@
 /* from ui_settings_*.c */
 extern const MenuItem g_display_settings_menu;
 extern const MenuItem g_gps_settings_menu;
+extern const MenuItem g_m17_settings_menu;
 extern const MenuItem g_fm_settings_menu;
 extern const MenuItem g_accessibility_settings_menu;
 
 static const MenuItem *const settings_children[] = {
     &g_display_settings_menu,
     &g_gps_settings_menu,
+    &g_m17_settings_menu,
     &g_fm_settings_menu,
     &g_accessibility_settings_menu,
 };

@@ -449,6 +449,31 @@ uint8_t gfx_getFontHeight(fontSize_t size)
     return glyph.height;
 }
 
+point_t gfx_textSize(fontSize_t size, const char *buf)
+{
+    GFXfont f = fonts[size];
+    size_t len = strlen(buf);
+    uint16_t w = 0;
+    uint16_t h = 0;
+
+    for (size_t i = 0; i < len; ++i)
+    {
+        char c = buf[i];
+
+        if (c == '\n' || c == '\r') break;
+        if (c < f.first || c > f.last) continue;
+
+        GFXglyph glyph = f.glyph[c - f.first];
+        w += glyph.xAdvance;
+        if (glyph.height > h) {
+            h = glyph.height;
+        }
+    }
+
+    point_t sz = { w, h };
+    return sz;
+}
+
 point_t gfx_printBuffer(point_t start, fontSize_t size, textAlign_t alignment,
                         color_t color, const char *buf)
 {

@@ -6,6 +6,7 @@
 
 #include "ui/ui_menu.h"
 #include "ui/ui_screen.h"
+#include "ui/ui_textedit.h"
 #include "interfaces/keyboard.h" //TODO: For keycodes
 
 /* menu_draw includes */
@@ -193,6 +194,14 @@ static void menu_ensure_visible(MenuFrame *frame)
     }
 }
 
+static void menu_textedit_done(bool applied, void *user)
+{
+    MenuValueBinding *b = (MenuValueBinding *)user;
+    if (applied && b && b->on_change) {
+        b->on_change(b->ptr);
+    }
+}
+
 /* --- Public API --- */
 UiScreen *ui_get_menu_screen(void)
 {
@@ -282,6 +291,24 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
             }
             /* Activate edit mode on value node */
             else if (item->kind == MENU_NODE_VALUE && item->binding) {
+                MenuValueBinding *b = item->binding;
+
+                if (b->kind == MENU_VAL_STR) {
+                    /* Launch text editor screen instead of inline edit */
+                    UiTextEditParams p = {
+                        .buf       = (char *)b->ptr,
+                        .max_len   = b->u.str.max_len,
+                        .profile   = b->u.str.profile,
+                        .title     = item->label,
+                        .on_done   = menu_textedit_done,
+                        .user      = b,
+                    };
+                    ui_open_textedit(&p);
+                    st->dirty = true; // TODO: overwritten with `menu_draw()`
+                    return;
+                }
+
+                /* Non-string values; normal inline edit mode */
                 st->edit  = true;
                 st->dirty = true;
             }

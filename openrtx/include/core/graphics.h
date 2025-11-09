@@ -215,6 +215,13 @@ void gfx_drawCircle(point_t start, uint16_t r, color_t color);
 uint8_t gfx_getFontHeight(fontSize_t size);
 
 /**
+ * Measure text
+ * @param size: text font size, defined as enum.
+ * @return text width and height as point_t coordinates
+ */
+point_t gfx_textSize(fontSize_t size, const char *buf);
+
+/**
  * Prints text on the screen at the specified coordinates.
  * Reads text from a given char buffer
  * @param start: text line start point, in pixel coordinates.
