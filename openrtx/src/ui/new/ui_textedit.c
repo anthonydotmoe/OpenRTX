@@ -217,6 +217,19 @@ static void textedit_tick(UiScreen *self, const UiEvent *ev)
         return;
     }
 
+    switch (ev->type) {
+    case UI_EVENT_FOCUS_GAIN:
+        st->dirty = true;
+        return;
+    case UI_EVENT_FOCUS_LOST:
+        // Nothing for now
+        return;
+    case UI_EVENT_KEY:
+        break; // handled below
+    default:
+        return;
+    }
+
     enum key key = ev->key;
 
     //TODO: hacky

@@ -134,6 +134,11 @@ static void menu_value_format(const MenuValueBinding *b, char *buf, size_t n)
             sniprintf(buf, n, "%"PRIu8, v);
             break;
         }
+        case MENU_VAL_STR: {
+            char *v = (char *)b->ptr;
+            sniprintf(buf, n, "%s", v);
+            break;
+        }
         default:
             sniprintf(buf, n, "?");
             break;
@@ -221,7 +226,7 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
 {
     MenuState *st = (MenuState *)self->ctx;
 
-    if (!st || !ev) {
+    if (!st) {
         return;
     }
 
@@ -230,7 +235,21 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
         menu_reset_to_root(st);
     }
 
-    /* For now we treat all events as key events */
+    switch (ev->type) {
+    case UI_EVENT_FOCUS_GAIN:
+        st->dirty = true;
+        return;
+
+    case UI_EVENT_FOCUS_LOST:
+        // Nothing special for now
+        return;
+    case UI_EVENT_KEY:
+        break; // handle below
+    default:
+        return;
+    }
+
+    // It's a key event
     enum key key = ev->key;
 
     MenuFrame *frame = &st->stack[st->depth - 1];

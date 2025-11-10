@@ -12,9 +12,16 @@
 
 typedef struct UiScreen UiScreen;
 
+typedef enum {
+    UI_EVENT_NONE       = 0,
+    UI_EVENT_KEY        = 1,
+    UI_EVENT_FOCUS_GAIN = 2,
+    UI_EVENT_FOCUS_LOST = 3,
+} UiEventType;
+
 typedef struct {
-    uint16_t type;
-    enum key key;
+    UiEventType type;
+    enum key key;   // valid only when type == UI_EVENT_KEY
 } UiEvent;
 
 typedef void (*UiScreenTick)(UiScreen *self, const UiEvent *ev);
