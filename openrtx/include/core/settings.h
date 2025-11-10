@@ -23,6 +23,7 @@
 
 #include "hwconfig.h"
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum
 {
@@ -54,43 +55,26 @@ typedef struct
     int8_t  utc_timezone;         // Timezone, in units of half hours
     bool    gps_enabled;          // GPS active
     char    callsign[10];         // Plaintext callsign
-    uint8_t display_timer   : 4,  // Standby timer
-            m17_can         : 4;  // M17 CAN
-    uint8_t vpLevel         : 3,  // Voice prompt level
-            vpPhoneticSpell : 1,  // Phonetic spell enabled
-            macroMenuLatch  : 1,  // Automatic latch of macro menu
-            _reserved       : 3;
+    uint8_t display_timer;        // Standby timer
+    uint8_t m17_can;              // M17 CAN
+    uint8_t vpLevel;              // Voice prompt level
+    uint8_t vpPhoneticSpell;      // Phonetic spell enabled
+    bool    macroMenuLatch;       // Automatic latch of macro menu
     bool    m17_can_rx;           // Check M17 CAN on RX
     char    m17_dest[10];         // M17 destination
     bool    showBatteryIcon;      // Battery display true: icon, false: percentage
     bool    gpsSetTime;           // Use GPS to ajust RTC time
 }
-__attribute__((packed)) settings_t;
+settings_t;
 
-
-static const settings_t default_settings =
-{
-    100,                          // Brightness
-#ifdef CONFIG_SCREEN_CONTRAST
-    CONFIG_DEFAULT_CONTRAST,      // Contrast
-#else
-    255,                          // Contrast
+#ifdef __cplusplus
+extern "C" {
 #endif
-    4,                            // Squelch level, 4 = S3
-    0,                            // Vox level
-    0,                            // UTC Timezone
-    false,                        // GPS enabled
-    "",                           // Empty callsign
-    TIMER_30S,                    // 30 seconds
-    0,                            // M17 CAN
-    0,                            // Voice prompts off
-    0,                            // Phonetic spell off
-    1,                            // Automatic latch of macro menu enabled
-    0,                            // not used
-    false,                        // Check M17 CAN on RX
-    "",                           // Empty M17 destination
-    false,                        // Display battery icon
-    false,                        // Update RTC with GPS
-};
+
+extern const settings_t default_settings;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SETTINGS_H */
