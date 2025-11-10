@@ -310,7 +310,7 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
             }
             /* Activate edit mode on value node */
             else if (item->kind == MENU_NODE_VALUE && item->binding) {
-                MenuValueBinding *b = item->binding;
+                const MenuValueBinding *b = item->binding;
 
                 if (b->kind == MENU_VAL_STR) {
                     /* Launch text editor screen instead of inline edit */
@@ -320,10 +320,9 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
                         .profile   = b->u.str.profile,
                         .title     = item->label,
                         .on_done   = menu_textedit_done,
-                        .user      = b,
+                        .user      = (void *)b,
                     };
                     ui_open_textedit(&p);
-                    st->dirty = true; // TODO: overwritten with `menu_draw()`
                     return;
                 }
 
@@ -471,7 +470,13 @@ static void menu_draw(UiScreen *self)
 
         /* Value on the right if this is a VALUE node */
         if (item->kind == MENU_NODE_VALUE) {
-            // TODO: Evaluate value buffer size
+            /**
+             * TODO: Evaluate value buffer size
+             * - We don't want the printed value to take up too much room in the
+             * screen, taking away from the item title.
+             * - Variable length fonts make this tricky.
+             * - Truncating could be misleading
+             */
             char buf[16] = {0};
 
             if (item->binding) {
