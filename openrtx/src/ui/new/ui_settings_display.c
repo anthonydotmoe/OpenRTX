@@ -41,8 +41,35 @@ static const MenuItem m_contrast =
     MENU_ITEM_VALUE_BINDING("Contrast", &contrast_binding);
 #endif
 
+static const char *timer_names[] =
+{
+    "OFF",
+    "5 s",
+    "10 s",
+    "15 s",
+    "20 s",
+    "25 s",
+    "30 s",
+    "1 min",
+    "2 min",
+    "3 min",
+    "4 min",
+    "5 min",
+    "15 min",
+    "30 min",
+    "45 min",
+    "1 hour"
+};
+
+static MenuValueBinding timer_binding = {
+    .kind      = MENU_VAL_ENUM,
+    .ptr       = &state.settings.display_timer,
+    .u.enm     = { .names = timer_names, .count = ARRAY_LEN(timer_names) },
+    .on_change = NULL,
+};
+
 static const MenuItem m_timer =
-    MENU_ITEM_UNIMPLEMENTED("Timer");
+    MENU_ITEM_VALUE_BINDING("Timer", &timer_binding);
 
 static MenuValueBinding battery_icon_binding = {
     .kind      = MENU_VAL_BOOL,

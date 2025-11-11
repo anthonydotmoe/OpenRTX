@@ -16,6 +16,75 @@
 /* How many rows we plan to show at once; for scrolling logic */
 #define MENU_VISIBLE_ROWS 6
 
+static void u8_adjust(uint8_t *data, bool inc, uint8_t min, uint8_t max, uint8_t step, bool wrap) {
+    uint8_t v = *data;
+
+    /* TODO: Evaluate responsibility
+    // Sanity check: if min > max, swap
+    if (min > max) {
+        uint8_t tmp = min;
+        min = max;
+        max = tmp;
+    }
+    
+    if (step == 0) {
+        step = 1;
+    }
+    */
+
+    // Normalize any out-of-range value
+    if (v < min) {
+        v = min;
+    } else if (v > max) {
+        v = max;
+    }
+
+    if (inc) {
+        // Increment
+        if (v >= max) {
+            if (wrap) {
+                v = min;
+            } else {
+                v = max;
+            }
+        } else {
+            // Do arithmetic in a wider type to avoid overflow
+            unsigned int tmp = (unsigned int)v + (unsigned int)step;
+            if (tmp > max) {
+                if (wrap) {
+                    v = min;
+                } else {
+                    v = max;
+                }
+            } else {
+                v = (uint8_t)tmp;
+            }
+        }
+    } else {
+        // Decrement
+        if (v <= min) {
+            if (wrap) {
+                v = max;
+            } else {
+                v = min;
+            }
+        } else {
+            int tmp = (int)v - (int)step;
+            if (tmp < (int)min) {
+                if (wrap) {
+                    v = max;
+                } else {
+                    v = min;
+                }
+            } else {
+                v = (uint8_t)tmp;
+            }
+        }
+    }
+    
+    *data = v;
+}
+
 static void menu_value_adjust(const MenuValueBinding *b, bool inc)
 {
     if (!b || !b->ptr) {
@@ -30,77 +99,26 @@ static void menu_value_adjust(const MenuValueBinding *b, bool inc)
         }
         case MENU_VAL_U8: {
             uint8_t *p = (uint8_t *)b->ptr;
-            uint8_t v = *p;
-
-            uint8_t min  = b->u.u8.min;
-            uint8_t max  = b->u.u8.max;
-            uint8_t step = b->u.u8.step;
-            bool    wrap = b->u.u8.wrap;
-
-            /* TODO: Evaluate responsibility
-            // Sanity check: if min > max, swap
-            if (min > max) {
-                uint8_t tmp = min;
-                min = max;
-                max = tmp;
-            }
-            
-            if (step == 0) {
-                step = 1;
-            }
-            */
-
-            // Normalize any out-of-range value
-            if (v < min) {
-                v = min;
-            } else if (v > max) {
-                v = max;
-            }
-
-            if (inc) {
-                // Increment
-                if (v >= max) {
-                    if (wrap) {
-                        v = min;
-                    } else {
-                        v = max;
-                    }
-                } else {
-                    // Do arithmetic in a wider type to avoid overflow
-                    unsigned int tmp = (unsigned int)v + (unsigned int)step;
-                    if (tmp > max) {
-                        if (wrap) {
-                            v = min;
-                        } else {
-                            v = max;
-                        }
-                    } else {
-                        v = (uint8_t)tmp;
-                    }
-                }
-            } else {
-                // Decrement
-                if (v <= min) {
-                    if (wrap) {
-                        v = max;
-                    } else {
-                        v = min;
-                    }
-                } else {
-                    int tmp = (int)v - (int)step;
-                    if (tmp < (int)min) {
-                        if (wrap) {
-                            v = max;
-                        } else {
-                            v = min;
-                        }
-                    } else {
-                        v = (uint8_t)tmp;
-                    }
-                }
-            }
-            
-            *p = v;
+            u8_adjust(
+                p,
+                inc,
+                b->u.u8.min,
+                b->u.u8.max,
+                b->u.u8.step,
+                b->u.u8.wrap
+            );
+            break;
+        }
+        case MENU_VAL_ENUM: {
+            uint8_t *p = (uint8_t *)b->ptr;
+            u8_adjust(
+                p,
+                inc,
+                0,
+                b->u.enm.count-1,
+                1,
+                true
+            );
             break;
         }
         default:
@@ -121,7 +139,7 @@ static void menu_value_format(const MenuValueBinding *b, char *buf, size_t n)
     switch (b->kind) {
         case MENU_VAL_BOOL: {
             bool v = *(bool *)b->ptr;
-            sniprintf(buf, n, "%s", v ? "On" : "Off");
+            sniprintf(buf, n, "%s", v ? "ON" : "OFF");
             break;
         }
         case MENU_VAL_I32: {
@@ -132,6 +150,12 @@ static void menu_value_format(const MenuValueBinding *b, char *buf, size_t n)
         case MENU_VAL_U8: {
             uint8_t v = *(uint8_t *)b->ptr;
             sniprintf(buf, n, "%"PRIu8, v);
+            break;
+        }
+        case MENU_VAL_ENUM: {
+            char **names = (char **)b->u.enm.names;
+            char *v = names[*((uint8_t*)b->ptr)];
+            sniprintf(buf, n, "%s", v);
             break;
         }
         case MENU_VAL_STR: {
@@ -233,6 +257,10 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
     /* If somehow unitialized, reset to root */
     if (st->depth == 0) {
         menu_reset_to_root(st);
+    }
+
+    if (!ev) {
+        return;
     }
 
     switch (ev->type) {
