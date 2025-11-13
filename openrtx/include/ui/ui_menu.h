@@ -71,8 +71,8 @@ typedef enum {
 
 typedef enum {
     MENU_VAL_BOOL,
-    MENU_VAL_I32,
     MENU_VAL_U8,
+    MENU_VAL_I32,
     MENU_VAL_ENUM,
     MENU_VAL_STR,
 } MenuValueKind;
@@ -83,8 +83,8 @@ typedef struct {
     void (*on_change)(void *ptr); // optional side-effect on change
 
     union {
-        struct { int32_t min, max, step;   bool wrap; } i32;
         struct { uint8_t min, max, step;   bool wrap; } u8;
+        struct { int32_t min, max, step;   bool wrap; } i32;
         struct { const char *const *names; uint8_t count; } enm;
         struct {
             uint8_t      max_len;

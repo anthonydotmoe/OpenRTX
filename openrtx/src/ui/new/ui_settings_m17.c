@@ -5,24 +5,21 @@
 #include "ui/ui_menu.h"
 #include "ui/ui_menu_dsl.h"
 
+#include "core/settings.h"
 #include "core/state.h"
 
-/* TODO: Use real buffer instead of fake one */
-static char callsign_buf[10] = {0};
-static uint8_t m17_can = 0;
-static bool m17_canrxcheck = false;
-
-static void callsign_on_change(void *ptr) {
+static void on_change(void *ptr) {
     (void)ptr;
-    // Do nothing
+    //TODO: old UI says `*sync_rtx = true`,
+    //      need to update the rtx thread
 }
 
 static MenuValueBinding callsign_binding = {
     .kind = MENU_VAL_STR,
-    .ptr = callsign_buf,
-    .on_change = callsign_on_change,
+    .ptr = &state.settings.callsign,
+    .on_change = on_change,
     .u.str = {
-        .max_len = sizeof(callsign_buf) - 1,
+        .max_len = sizeof(((settings_t *)0)->callsign) - 1,
         .profile = UI_STR_PROFILE_CALLSIGN,
     },
 };
@@ -32,8 +29,8 @@ static const MenuItem m_callsign =
 
 static MenuValueBinding can_binding = {
     .kind = MENU_VAL_U8,
-    .ptr = &m17_can,
-    .on_change = NULL,
+    .ptr = &state.settings.m17_can,
+    .on_change = on_change,
     .u.u8 = { .min = 0, .max = 15, .step = 1, .wrap = true },
 };
 
@@ -42,8 +39,8 @@ static const MenuItem m_can =
 
 static MenuValueBinding can_rx_check_binding = {
     .kind = MENU_VAL_BOOL,
-    .ptr = &m17_canrxcheck,
-    .on_change = NULL,
+    .ptr = &state.settings.m17_can_rx,
+    .on_change = on_change,
 };
 
 static const MenuItem m_can_rx_check =

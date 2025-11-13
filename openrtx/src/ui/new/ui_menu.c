@@ -85,6 +85,49 @@ static void u8_adjust(uint8_t *data, bool inc, uint8_t min, uint8_t max, uint8_t
     *data = v;
 }
 
+
+static void i32_adjust(int32_t *data, bool inc,
+                       int32_t min, int32_t max,
+                       int32_t step, bool wrap)
+{
+    int32_t v = *data;
+
+    // Normalize any out-of-range value
+    if (v < min) {
+        v = min;
+    } else if (v > max) {
+        v = max;
+    }
+
+    if (inc) {
+        // Increment
+        if (v >= max) {
+            v = wrap ? min : max;
+        } else {
+            int64_t tmp = (int64_t)v + (int64_t)step;
+            if (tmp > (int64_t)max) {
+                v = wrap ? min : max;
+            } else {
+                v = (int32_t)tmp;
+            }
+        }
+    } else {
+        // Decrement
+        if (v <= min) {
+            v = wrap ? max : min;
+        } else {
+            int64_t tmp = (int64_t)v - (int64_t)step;
+            if (tmp < (int64_t)min) {
+                v = wrap ? max : min;
+            } else {
+                v = (int32_t)tmp;
+            }
+        }
+    }
+
+    *data = v;
+}
+
 static void menu_value_adjust(const MenuValueBinding *b, bool inc)
 {
     if (!b || !b->ptr) {
@@ -106,6 +149,18 @@ static void menu_value_adjust(const MenuValueBinding *b, bool inc)
                 b->u.u8.max,
                 b->u.u8.step,
                 b->u.u8.wrap
+            );
+            break;
+        }
+        case MENU_VAL_I32: {
+            int32_t *p = (int32_t *)b->ptr;
+            i32_adjust(
+                p,
+                inc,
+                b->u.i32.min,
+                b->u.i32.max,
+                b->u.i32.step,
+                b->u.i32.wrap
             );
             break;
         }
@@ -142,14 +197,14 @@ static void menu_value_format(const MenuValueBinding *b, char *buf, size_t n)
             sniprintf(buf, n, "%s", v ? "ON" : "OFF");
             break;
         }
-        case MENU_VAL_I32: {
-            int32_t v = *(int32_t *)b->ptr;
-            sniprintf(buf, n, "%"PRIi32, v);
-            break;
-        }
         case MENU_VAL_U8: {
             uint8_t v = *(uint8_t *)b->ptr;
             sniprintf(buf, n, "%"PRIu8, v);
+            break;
+        }
+        case MENU_VAL_I32: {
+            int32_t v = *(int32_t *)b->ptr;
+            sniprintf(buf, n, "%"PRIi32, v);
             break;
         }
         case MENU_VAL_ENUM: {

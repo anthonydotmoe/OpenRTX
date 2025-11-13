@@ -50,6 +50,9 @@ static void fm_ctcss_mode_to_state(CtcEnMode m)
         state.channel.fm.rxToneEn = true;
         break;
     }
+
+    //TODO: old UI says `*sync_rtx = true`,
+    //      need to update the rtx thread
 }
 
 static int fm_ctcss_en_cb(MenuCmd cmd, void *arg, void *cb_ctx)

@@ -1,56 +1,45 @@
 #include <string.h>
 
+#include "core/state.h"
 #include "ui/ui_menu.h"
 #include "ui/ui_menu_dsl.h"
 
-/* TODO: Replace fake values with real ones */
-
-static bool macrolatch = false;
-static bool phonetic   = false;
-static bool voice      = false;
-
-/* End TODO:--------------------------------*/
-
 static MenuValueBinding macro_latch_binding = {
     .kind      = MENU_VAL_BOOL,
-    .ptr       = &macrolatch,
+    .ptr       = &state.settings.macroMenuLatch,
     .on_change = NULL,
 };
 
 static const MenuItem m_macro_latch =
     MENU_ITEM_VALUE_BINDING("Macro Latch", &macro_latch_binding);
 
+static const char *voice_names[] =
+{
+    "OFF",
+    "Beep",
+    "1",
+    "2",
+    "3",
+};
+
 static MenuValueBinding voice_binding = {
-    .kind      = MENU_VAL_BOOL,
-    .ptr       = &voice,
+    .kind      = MENU_VAL_ENUM,
+    .ptr       = &state.settings.vpLevel,
+    .u.enm     = { .names = voice_names, .count = ARRAY_LEN(voice_names) },
     .on_change = NULL,
 };
 
-static const MenuItem m_voice = {
-    .kind        = MENU_NODE_UNIMPLEMENTED,
-    .label       = "Voice",
-    .child_count = 0,
-    .children    = NULL,
-    .binding     = &voice_binding,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+static const MenuItem m_voice =
+    MENU_ITEM_VALUE_BINDING("Voice", &voice_binding);
 
 static MenuValueBinding phonetic_binding = {
     .kind      = MENU_VAL_BOOL,
-    .ptr       = &phonetic,
+    .ptr       = &state.settings.vpPhoneticSpell,
     .on_change = NULL,
 };
 
-static const MenuItem m_phonetic = {
-    .kind        = MENU_NODE_UNIMPLEMENTED,
-    .label       = "Phonetic",
-    .child_count = 0,
-    .children    = NULL,
-    .binding     = &phonetic_binding,
-    .cb          = NULL,
-    .cb_ctx      = NULL,
-};
+static const MenuItem m_phonetic =
+    MENU_ITEM_VALUE_BINDING("Phonetic", &phonetic_binding);
 
 static const MenuItem *const accessibility_children[] = {
     &m_macro_latch,

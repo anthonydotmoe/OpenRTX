@@ -85,6 +85,7 @@ ui_src_default = ['openrtx/src/ui/default/ui.c',
                   'openrtx/src/ui/new/ui_menu_tree.c',
                   'openrtx/src/ui/new/ui_settings_display.c',
                   'openrtx/src/ui/new/ui_settings_gps.c',
+                  'openrtx/src/ui/new/ui_settings_radio.c',
                   'openrtx/src/ui/new/ui_settings_m17.c',
                   'openrtx/src/ui/new/ui_settings_fm.c',
                   'openrtx/src/ui/new/ui_settings_accessibility.c',
@@ -796,7 +797,8 @@ cs7000p_opts = {
   'c_args'             : cs7000p_args,
   'cpp_args'           : cs7000p_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32H7xx/linker_script_cs7000p.ld',
-                          '-Wl,--print-memory-usage']
+                          '-Wl,--print-memory-usage',
+                          '-Wl,-Map=firmware.map']
 }
 
 dm1701_opts = {
