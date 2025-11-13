@@ -500,6 +500,9 @@ static void menu_draw(UiScreen *self)
     const color_t color_white = {255, 255, 255, 255};
     const color_t color_black = {0, 0, 0, 255};
 
+    const uint16_t scrollbar_pad = 4;
+    const uint16_t scrollbar_width = 2;
+
     MenuState *st = (MenuState *)self->ctx;
 
     if(!st || !st->dirty)
@@ -528,6 +531,8 @@ static void menu_draw(UiScreen *self)
 
     // Menu items
     point_t pos   = line1_pos;
+    point_t pos_val = { line1_pos.x + scrollbar_pad, line1_pos.y };
+
     int     first = frame->first;
     int     count = menu->child_count;
 
@@ -550,7 +555,7 @@ static void menu_draw(UiScreen *self)
                 full_rect = false;
             }
             point_t rect_pos = {0, pos.y - menu_h + 3};
-            gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH, menu_h, color_white, full_rect);
+            gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH - scrollbar_pad, menu_h, color_white, full_rect);
             // announceMenuItemIfNeeded()
         }
         gfx_print(pos, menu_font, TEXT_ALIGN_LEFT, text_color, label);
@@ -558,7 +563,7 @@ static void menu_draw(UiScreen *self)
         char value_buf[16] = {0};
         /* Show if node is unimplemented */
         if (item->kind == MENU_NODE_UNIMPLEMENTED) {
-            gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, ":(");
+            gfx_print(pos_val, menu_font, TEXT_ALIGN_RIGHT, text_color, ":(");
         }
 
         /* Value on the right if this is a VALUE node */
@@ -594,11 +599,44 @@ static void menu_draw(UiScreen *self)
         }
 
         if (value_buf[0] != '\0') {
-            gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, value_buf);
+            gfx_print(pos_val, menu_font, TEXT_ALIGN_RIGHT, text_color, value_buf);
         }
 
         pos.y += menu_h;
+        pos_val.y = pos.y;
     }
+
+    // Scroll bar
+    int max_first_visible = count - MENU_VISIBLE_ROWS;
+    int16_t thumb_px, thumb_pos_px;
+    const int16_t track_px_start = 16 + 4;
+    const int16_t track_px = CONFIG_SCREEN_HEIGHT - track_px_start; // total height of scrollbar track in pixels
+    if (count <= MENU_VISIBLE_ROWS || count == 0) {
+        thumb_px = track_px;
+    } else {
+        int32_t num   = (int32_t)track_px * (int32_t)MENU_VISIBLE_ROWS;
+        int32_t denom = (int32_t)count;
+
+        // Add denom/2 for simple "round to nearest" instead of truncating
+        thumb_px = (int16_t)((num + denom / 2) / denom);
+    }
+
+    if (max_first_visible < 1) {
+        // nothing to scroll
+        thumb_pos_px = 0;
+    } else {
+        int track_travel_px = track_px - thumb_px;
+        if (track_travel_px < 0)
+            track_travel_px = 0;
+        
+        int32_t num   = (int32_t)track_travel_px * (int32_t)first;
+        int32_t denom = (int32_t)max_first_visible;
+
+        thumb_pos_px = (int16_t)((num + denom / 2) / denom);
+    }
+
+    point_t scrollbar_pos = { CONFIG_SCREEN_WIDTH - scrollbar_width, track_px_start + thumb_pos_px };
+    gfx_drawRect(scrollbar_pos, scrollbar_width, thumb_px, color_white, true);
 
     gfx_render();
     st->dirty = false;
