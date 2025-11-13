@@ -418,6 +418,10 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
                 st->edit  = true;
                 st->dirty = true;
             }
+            else if (item->kind == MENU_NODE_ACTION && item->cb) {
+                item->cb(MENU_CMD_SELECT, NULL, item->cb_ctx);
+                st->dirty = true;
+            }
             break;
         }
         
@@ -551,8 +555,14 @@ static void menu_draw(UiScreen *self)
         }
         gfx_print(pos, menu_font, TEXT_ALIGN_LEFT, text_color, label);
 
+        char value_buf[16] = {0};
+        /* Show if node is unimplemented */
+        if (item->kind == MENU_NODE_UNIMPLEMENTED) {
+            gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, ":(");
+        }
+
         /* Value on the right if this is a VALUE node */
-        if (item->kind == MENU_NODE_VALUE) {
+        else if (item->kind == MENU_NODE_VALUE) {
             /**
              * TODO: Evaluate value buffer size
              * - We don't want the printed value to take up too much room in the
@@ -560,28 +570,33 @@ static void menu_draw(UiScreen *self)
              * - Variable length fonts make this tricky.
              * - Truncating could be misleading
              */
-            char buf[16] = {0};
 
             if (item->binding) {
                 /* Generic value binding */
-                menu_value_format((const MenuValueBinding *)item->binding, buf, sizeof buf);
+                menu_value_format((const MenuValueBinding *)item->binding, value_buf, sizeof value_buf);
             } else if (item->cb) {
                 /* Custom value: let the callback format it */
                 MenuDrawValueArgs args = {
-                    .buf     = buf,
-                    .buf_len = sizeof buf
+                    .buf     = value_buf,
+                    .buf_len = sizeof value_buf
                 };
                 item->cb(MENU_CMD_DRAW_VALUE, &args, item->cb_ctx);
             }
-            if (buf[0] != '\0') {
-                gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, buf);
-            }
         }
 
-        /* Show if node is unimplemented */
-        if (item->kind == MENU_NODE_UNIMPLEMENTED) {
-            gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, ":(");
+        /* Show value if MENU_NODE_ACTION supports it */
+        else if (item->kind == MENU_NODE_ACTION && item->cb) {
+            MenuDrawValueArgs args = {
+                .buf     = value_buf,
+                .buf_len = sizeof value_buf
+            };
+            item->cb(MENU_CMD_DRAW_VALUE, &args, item->cb_ctx);
         }
+
+        if (value_buf[0] != '\0') {
+            gfx_print(pos, menu_font, TEXT_ALIGN_RIGHT, text_color, value_buf);
+        }
+
         pos.y += menu_h;
     }
 
