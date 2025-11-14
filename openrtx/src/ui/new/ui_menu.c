@@ -608,31 +608,28 @@ static void menu_draw(UiScreen *self)
 
     // Scroll bar
     int max_first_visible = count - MENU_VISIBLE_ROWS;
-    int16_t thumb_px, thumb_pos_px;
-    const int16_t track_px_start = 16 + 4;
-    const int16_t track_px = CONFIG_SCREEN_HEIGHT - track_px_start; // total height of scrollbar track in pixels
-    if (count <= MENU_VISIBLE_ROWS || count == 0) {
+    uint16_t thumb_px, thumb_pos_px;
+    const uint16_t track_px_start = top_h + top_pad;
+    const uint16_t track_px = CONFIG_SCREEN_HEIGHT - track_px_start; // total height of scrollbar track in pixels
+
+    if (count <= 0 || max_first_visible <= 0) {
+        // No scrolling: everything fits, or nothing to show
         thumb_px = track_px;
     } else {
         int32_t num   = (int32_t)track_px * (int32_t)MENU_VISIBLE_ROWS;
         int32_t denom = (int32_t)count;
 
         // Add denom/2 for simple "round to nearest" instead of truncating
-        thumb_px = (int16_t)((num + denom / 2) / denom);
-    }
+        thumb_px = (uint16_t)((num + denom / 2) / denom);
 
-    if (max_first_visible < 1) {
-        // nothing to scroll
-        thumb_pos_px = 0;
-    } else {
         int track_travel_px = track_px - thumb_px;
         if (track_travel_px < 0)
             track_travel_px = 0;
         
-        int32_t num   = (int32_t)track_travel_px * (int32_t)first;
-        int32_t denom = (int32_t)max_first_visible;
+        num   = (int32_t)track_travel_px * (int32_t)first;
+        denom = (int32_t)max_first_visible;
 
-        thumb_pos_px = (int16_t)((num + denom / 2) / denom);
+        thumb_pos_px = (uint16_t)((num + denom / 2) / denom);
     }
 
     point_t scrollbar_pos = { CONFIG_SCREEN_WIDTH - scrollbar_width, track_px_start + thumb_pos_px };
