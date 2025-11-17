@@ -25,7 +25,7 @@ typedef struct {
     void *user;
 } UiTextEditParams;
 
-#define UI_TEXTEDIT_KEY_TIMEOUT 700
+#define UI_TEXTEDIT_KEY_TIMEOUT 700 //TODO: Make this a setting in the menu
 
 /// @brief Push the text editor UiScreen onto the screen stack
 void ui_open_textedit(const UiTextEditParams *p);

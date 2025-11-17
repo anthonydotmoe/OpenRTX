@@ -80,6 +80,16 @@ static UiScreen g_textedit_screen = {
 
 /* --- Internal helpers --- */
 
+static void textedit_end_multitap(TexteditState *st, long long *now)
+{
+        st->candidate_active = false;
+        st->active_key       = 0;
+        st->active_idx       = 0;
+        st->last_keypress    = 0;
+        st->last_blink       = *now;
+        st->caret_visible    = true;
+}
+
 static void textedit_reset(TexteditState *st)
 {
     st->cursor        = 0;
@@ -94,6 +104,33 @@ static void textedit_reset(TexteditState *st)
     st->last_blink    = getTick();
     
     st->scratch[0] = '\0';
+}
+
+static bool textedit_insert_char_at_cursor(TexteditState *st, char ch)
+{
+    if (st->len >= st->max_len) {
+        return false; // no room
+    }
+
+    // Clamp cursor to valid range
+    if (st->cursor > st->len) {
+        st->cursor = st->len;
+    }
+
+    // Tail length: characters from cursor to end excluding '\0'
+    size_t tail_len = (size_t)(st->len - st->cursor);
+
+    // Move tail + '\0' right by one byte
+    memmove(&st->scratch[st->cursor + 1],
+            &st->scratch[st->cursor],
+            tail_len + 1
+    );
+
+    st->scratch[st->cursor] = ch;
+    st->cursor++;
+    st->len++;
+
+    return true;
 }
 
 static void textedit_keypad(TexteditState *st, kbd_msg_t msg)
@@ -111,30 +148,31 @@ static void textedit_keypad(TexteditState *st, kbd_msg_t msg)
     bool timed_out = st->candidate_active &&
                      ((now - st->last_keypress) >= UI_TEXTEDIT_KEY_TIMEOUT);
 
-    // If we're at max len and we'd need to advance cursor, bail
     if (!same_key || timed_out) {
         // Changing key or previous candidate expired.
-        // In either case, we want a new candidate at the end.
-        if (st->len >= st->max_len) {
+        // In either case, we want a new candidate at the caret.
+        if (!textedit_insert_char_at_cursor(st, set[0])) {
             // Can't append
+            textedit_end_multitap(st, &now);
             return;
         }
 
         st->candidate_active = true;
         st->active_key       = num_key;
         st->active_idx       = 0;
-
-        // Append new candidate char at end
-        st->scratch[st->len] = set[0];
-        st->len++;
-        st->scratch[st->len] = '\0';
     } else {
-        // same key, within timeout: cycle candidate
-        // The candidate is at `st->len - 1`
-        st->active_idx = (uint8_t)((st->active_idx + 1u) % num_symbols);
-        if (st->len > 0) {
-            st->scratch[st->len - 1] = set[st->active_idx];
+        // Continuing the same key within timeout
+        // - cycle the candidate character in place
+        // - candidate is always at cursor-1 while multi-tap is active
+        if (st->cursor == 0) {
+            textedit_end_multitap(st, &now);
         }
+
+        // same key, within timeout: cycle candidate
+        uint8_t candidate_idx = (uint8_t)(st->cursor - 1);
+
+        st->active_idx = (uint8_t)((st->active_idx + 1u) % num_symbols);
+        st->scratch[candidate_idx] = set[st->active_idx];
     }
 
     //vp_announceInputChar(st->scratch[st->len - 1]);
@@ -143,20 +181,32 @@ static void textedit_keypad(TexteditState *st, kbd_msg_t msg)
     st->dirty         = true;
 }
 
-static void textedit_del(TexteditState *st)
+static void textedit_backspace(TexteditState *st)
 {
-    if (st->len == 0) {
+    if (st->len == 0 || st->cursor == 0) {
         // nothing to delete
         st->candidate_active = false;
         st->active_key       = 0;
-        st->active_key       = 0;
+        st->active_idx       = 0;
         st->last_keypress    = 0;
         return;
     }
 
-    // The last character is always removed, whether is was a candidate or not
+    // Index of the character we're removing
+    uint8_t remove_idx = (uint8_t)(st->cursor - 1);
+
+    // Number of characters after the cursor (not counting the removed one)
+    // e.g.: len=5, cursor=3 -> removing index 2 -> characters at 3,4 (2 chars)
+    size_t tail_len = (size_t)(st->len - st->cursor);
+
+    // Move tail (plus '\0') left by one
+    memmove(&st->scratch[remove_idx],
+            &st->scratch[st->cursor],
+            tail_len + 1
+    );
+
+    st->cursor--;
     st->len--;
-    st->scratch[st->len] = '\0';
 
     // Deletion always ends the multi-tap sequence
     st->candidate_active = false;
@@ -175,11 +225,17 @@ void ui_open_textedit(const UiTextEditParams *p)
 
     g_textedit_state.title = p->title ? p->title : "";
     g_textedit_state.max_len = p->max_len;
+    if (g_textedit_state.max_len >= TEXTEDIT_SCRATCH_SIZE) {
+        g_textedit_state.max_len = TEXTEDIT_SCRATCH_SIZE - 1;
+    }
+
     g_textedit_state.target = p->buf;
 
     strncpy(g_textedit_state.scratch, p->buf, g_textedit_state.max_len);
     g_textedit_state.scratch[g_textedit_state.max_len] = '\0';
-    g_textedit_state.len = strlen(g_textedit_state.scratch);
+
+    g_textedit_state.len = (uint8_t)strlen(g_textedit_state.scratch);
+    g_textedit_state.cursor = g_textedit_state.len;
 
     switch (p->profile)
     {
@@ -212,14 +268,7 @@ static void textedit_tick(UiScreen *self, const UiEvent *ev)
         if (dt >= UI_TEXTEDIT_KEY_TIMEOUT) {
             // Commit the candidate visually: keep it in scratch,
             // but stop treating it as "live" multi-tap.
-            st->candidate_active = false;
-            st->active_key       = 0;
-            st->active_idx       = 0;
-            st->last_keypress    = 0;
-
-            // Bring caret back immediately
-            st->caret_visible    = true;
-            st->last_blink       = now;
+            textedit_end_multitap(st, &now);
             st->dirty            = true;
         }
     }
@@ -275,17 +324,44 @@ static void textedit_tick(UiScreen *self, const UiEvent *ev)
     }
     else if(key == KEY_ENTER)
     {
-        strncpy(st->target, st->scratch, st->max_len);
+        // Enforce invariant
+        if (st->len > st->max_len) {
+            st->len = st->max_len;
+        }
+
+        // Copy string including '\0'
+        memcpy(st->target, st->scratch, (size_t)st->len + 1);
+
         ui_pop_screen();
         return;
     }
     else if (key == KEY_F5)
     {
-        textedit_del(st);
+        textedit_backspace(st);
         // reset caret blink on edit
         st->caret_visible = true;
         st->last_blink    = now;
         st->dirty         = true;
+        return;
+    }
+    else if (key == KEY_DOWN) // cursor left
+    {
+        if (st->cursor > 0) {
+            st->cursor--;
+            st->dirty = true;
+        }
+        // moving the curosr commits multi-tap
+        textedit_end_multitap(st, &now);
+        return;
+    }
+    else if (key == KEY_UP) // cursor right
+    {
+        if (st->cursor < st->len) {
+            st->cursor++;
+            st->dirty = true;
+        }
+        // moving the curosr commits multi-tap
+        textedit_end_multitap(st, &now);
         return;
     }
     else if(input_isCharPressed(msg))
@@ -308,14 +384,13 @@ static void textedit_draw(UiScreen *self)
     const uint16_t small_line_v_pad = 2;
     const uint16_t horizontal_pad   = 4;
     const uint16_t bottom_h         = 23;
-    const uint8_t  lines_visible    = 3;  // how many lines fit in the box
+    const uint8_t  lines_visible    = 4;  // how many lines fit in the box
     const uint8_t  line_spacing     = 2;  // vertical pixels between baselines
 
     const fontSize_t top_font       = FONT_SIZE_8PT;
     const fontSize_t text_font      = FONT_SIZE_8PT;
 
     const color_t color_white = (color_t){255, 255, 255, 255};
-    const color_t color_black = (color_t){0  , 0  , 0  , 255};
 
     TexteditState *st = (TexteditState *)self->ctx;
 
@@ -335,6 +410,11 @@ static void textedit_draw(UiScreen *self)
     const uint16_t status_bar_pos_y = top_h + top_pad + 8;
     const point_t  status_bar_pos = { horizontal_pad, status_bar_pos_y - status_v_pad - text_v_offset };
     gfx_print(status_bar_pos, FONT_SIZE_6PT, TEXT_ALIGN_RIGHT, color_white, "%" PRIu8 "/%" PRIu8, st->len, st->max_len);
+    
+    // Softkey labels
+    const uint16_t softkey_pos_y = CONFIG_SCREEN_HEIGHT - status_v_pad;
+    const point_t  softkey_pos = { horizontal_pad, softkey_pos_y };
+    gfx_print(softkey_pos, FONT_SIZE_6PT, TEXT_ALIGN_RIGHT, color_white, "Delete");
     
     /* --- Edit box geometry --- */
 
@@ -371,13 +451,83 @@ static void textedit_draw(UiScreen *self)
     int16_t text_start_x = (int16_t)rect_origin.x + inner_pad_x;
     int16_t text_area_right = (int16_t)(rect_origin.x + rect_width - inner_pad_x);
 
-    /* --- First pass: lay out characters into lines --- */
-    uint8_t char_line[TEXTEDIT_SCRATCH_SIZE];
-    int16_t char_x[TEXTEDIT_SCRATCH_SIZE];
+    /* --- First pass: lay out to find total_lines and caret position --- */
 
     uint8_t total_lines = 1;
     uint8_t cur_line    = 0;
     int16_t cur_x       = text_start_x;
+
+    uint8_t caret_line_idx = 0;
+    int16_t caret_x_full   = text_start_x;
+    bool    caret_set      = false;
+
+    if (st->len == 0) {
+        // Empty buffer: caret at start of first line
+        total_lines    = 1;
+        caret_line_idx = 0;
+        caret_x_full   = text_start_x;
+        caret_set      = true;
+    } else {
+        for (uint8_t i = 0; i < st->len; ++i) {
+            char c = st->scratch[i];
+            if (!c) {
+                break;
+            }
+
+            char tmp[2] = { c, 0 };
+            point_t sz = gfx_textSize(text_font, tmp);
+
+            // If this glyph would overflow the text area, wrap to next line
+            if ((cur_x + (int16_t)sz.x > text_area_right) && (cur_x != text_start_x)) {
+                cur_line++;
+                total_lines = (uint8_t)(cur_line + 1);
+                cur_x = text_start_x;
+            }
+
+            // If cursor is before the first character and not yet set
+            if (!caret_set && st->cursor == 0 && i == 0) {
+                caret_line_idx = cur_line;
+                caret_x_full   = text_start_x;
+                caret_set      = true;
+            }
+
+            // If cursor is after this character (typical case cursor = i+1)
+            if (!caret_set && st->cursor == (uint8_t)(i+1)) {
+                caret_line_idx = cur_line;
+                caret_x_full   = (int16_t)(cur_x + sz.x); // end of glyph
+                caret_set      = true;
+            }
+
+            cur_x = (int16_t)(cur_x + sz.x);
+        }
+
+        // Cursor at end of text and never set in the loop (e.g. len == cursor but last
+        // character was '\0' short-circuiting): fall back to end-of-line.
+        if (!caret_set) {
+            caret_line_idx = cur_line;
+            caret_x_full   = cur_x;
+            caret_set      = true;
+        }
+    }
+
+    /* --- Decide which lines to show so the caret is visible --- */
+    uint8_t first_visible_line = 0;
+    if (total_lines <= lines_visible) {
+        first_visible_line = 0;
+    } else {
+        // Try to keep the caret on the bottom visible line
+        int min_start = (int)caret_line_idx - (int)(lines_visible - 1);
+        if (min_start < 0)
+            min_start = 0;
+        if (min_start > (int)total_lines - (int)lines_visible)
+            min_start = (int)total_lines - (int)lines_visible;
+        first_visible_line = (uint8_t)min_start;
+    }
+
+    /* --- Second pass: draw visible characters --- */
+
+    cur_line = 0;
+    cur_x    = text_start_x;
 
     for (uint8_t i = 0; i < st->len; ++i) {
         char c = st->scratch[i];
@@ -391,78 +541,36 @@ static void textedit_draw(UiScreen *self)
         // If this glyph would overflow the text area, wrap to next line
         if ((cur_x + (int16_t)sz.x > text_area_right) && (cur_x != text_start_x)) {
             cur_line++;
-            total_lines = (uint8_t)(cur_line + 1);
             cur_x = text_start_x;
         }
 
-        char_line[i] = cur_line;
-        char_x[i]    = cur_x;
+        if (cur_line >= first_visible_line &&
+            cur_line < (uint8_t)(first_visible_line + lines_visible)) {
+            
+            uint8_t rel_line = (uint8_t)(cur_line - first_visible_line);
+
+            // Base glyph box for this line
+            int16_t base_glyph_top =
+                (int16_t)(base_glyph_top_line0 +
+                          rel_line * (font_h + line_spacing));
+            
+            // Actual text baseline for this line
+            int16_t glyph_top = (int16_t)(base_glyph_top + TEXTEDIT_TEXT_Y_ADJUST);
+
+            point_t pos = {
+                cur_x,
+                glyph_top
+            };
+
+            gfx_printBuffer(pos, text_font, TEXT_ALIGN_LEFT, color_white, tmp);
+        }
 
         cur_x = (int16_t)(cur_x + sz.x);
-    }
-
-    if (st->len == 0) {
-        total_lines = 1;
-    }
-
-    // Decide which lines to show: always show the last `lines_visible` lines
-    uint8_t first_visible_line = 0;
-    if (total_lines > lines_visible) {
-        first_visible_line = (uint8_t)(total_lines - lines_visible);
-    }
-
-    /* --- Second pass: draw visible characters --- */
-
-    for (uint8_t i = 0; i < st->len; ++i) {
-        char c = st->scratch[i];
-        if (!c) {
-            break;
-        }
-
-        uint8_t line_idx = char_line[i];
-        if (line_idx < first_visible_line) {
-            continue; // scrolled off the top
-        }
-
-        uint8_t rel_line = (uint8_t)(line_idx - first_visible_line);
-
-        // Base glyph box for this line
-        int16_t base_glyph_top =
-            (int16_t)(base_glyph_top_line0 +
-                      rel_line * (font_h + line_spacing));
-        
-        // Actual text baseline for this line
-        int16_t glyph_top = (int16_t)(base_glyph_top + TEXTEDIT_TEXT_Y_ADJUST);
-
-        point_t pos = {
-            char_x[i],
-            glyph_top
-        };
-
-        char tmp[2] = { c, 0 };
-        gfx_printBuffer(pos, text_font, TEXT_ALIGN_LEFT, color_white, tmp);
     }
 
     /* --- Caret drawing --- */
 
     if (!st->candidate_active && st->caret_visible) {
-        int caret_x = text_start_x;
-        uint8_t caret_line_idx = 0;
-
-        if (st->len == 0) {
-            // empty buffer: caret at start of last visible line
-            caret_line_idx = (uint8_t)(total_lines - 1);
-        } else {
-            uint8_t last_idx = (uint8_t)(st->len - 1);
-            caret_line_idx = char_line[last_idx];
-
-            // recompute width of last char to place caret after it
-            char last_c[2] = { st->scratch[last_idx], 0 };
-            point_t last_sz = gfx_textSize(text_font, last_c);
-
-            caret_x = (int)(char_x[last_idx] + last_sz.x + 1);
-        }
-
         // Clamp caret line to visible region
         if (caret_line_idx < first_visible_line) {
             caret_line_idx = first_visible_line;
@@ -474,6 +582,7 @@ static void textedit_draw(UiScreen *self)
         uint8_t caret_rel_line = (uint8_t)(caret_line_idx - first_visible_line);
 
         // Clamp caret horizontally to inside the rectangle
+        int caret_x = caret_x_full;
         int rect_left  = rect_origin.x;
         int rect_right = rect_origin.y + (int)rect_width - 1;
 
