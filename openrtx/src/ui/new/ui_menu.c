@@ -615,6 +615,7 @@ static void menu_draw(UiScreen *self)
     if (count <= 0 || max_first_visible <= 0) {
         // No scrolling: everything fits, or nothing to show
         thumb_px = track_px;
+        thumb_pos_px = 0;
     } else {
         int32_t num   = (int32_t)track_px * (int32_t)MENU_VISIBLE_ROWS;
         int32_t denom = (int32_t)count;
