@@ -69,8 +69,12 @@ openrtx/include/interfaces/radio.h
 openrtx/include/peripherals/gps.h
 openrtx/include/peripherals/rng.h
 openrtx/include/peripherals/rtc.h
+openrtx/include/protocols/M17/Callsign.hpp
+openrtx/include/protocols/M17/M17FrameDecoder.hpp
 openrtx/src/core/dsp.cpp
 openrtx/src/core/memory_profiling.cpp
+openrtx/src/protocols/M17/Callsign.cpp
+openrtx/src/protocols/M17/M17FrameDecoder.cpp
 platform/drivers/ADC/ADC0_GDx.h
 platform/drivers/audio/MAX9814.h
 platform/drivers/baseband/MCP4551.h
@@ -88,6 +92,7 @@ platform/targets/linux/emulator/sdl_engine.h
 platform/targets/ttwrplus/pmu.h
 tests/platform/mic_test.c
 tests/platform/codec2_encode_test.c
+tests/unit/M17_callsign.cpp
 EOF
 )
 
