@@ -4,6 +4,7 @@
 #include <string.h> // for NULL
 #include <inttypes.h>
 
+#include "ui/ui_new.h"
 #include "ui/ui_menu.h"
 #include "ui/ui_screen.h"
 #include "ui/ui_textedit.h"
@@ -12,9 +13,6 @@
 /* menu_draw includes */
 #include "hwconfig.h"
 #include "core/graphics.h"
-
-/* How many rows we plan to show at once; for scrolling logic */
-#define MENU_VISIBLE_ROWS 6
 
 static void u8_adjust(uint8_t *data, bool inc, uint8_t min, uint8_t max, uint8_t step, bool wrap) {
     uint8_t v = *data;
@@ -238,6 +236,13 @@ typedef struct {
     uint8_t     depth;
     bool        dirty;
     bool        edit;
+
+    // Geometry
+    uint16_t    menu_size;
+    uint16_t    menu_start_y;
+    uint16_t    menu_item_h;
+    uint16_t    menu_item_rows;
+    fontSize_t  menu_item_font;
 } MenuState;
 
 static void menu_tick(UiScreen *self, const UiEvent *ev);
@@ -266,15 +271,40 @@ static void menu_reset_to_root(MenuState *st)
     
     st->dirty = true;
     st->edit  = false;
+
+    // Calculate menu geometry
+    st->menu_item_font = ui_layout->status_bar_font;
+
+    uint8_t line_h = gfx_getFontHeight(st->menu_item_font);
+
+    // Vertical padding TODO: Investigate on different sized displays
+    const uint8_t row_padding = 0;
+    st->menu_item_h = line_h + row_padding;
+
+    // How many rows fit in the user area:
+    uint16_t num_rows = ui_layout->user_screen_size / st->menu_item_h;
+    if (num_rows == 0) { 
+        num_rows = 1;
+    }
+    
+    st->menu_item_rows = num_rows;
+    st->menu_size      = num_rows * st->menu_item_h;
+
+    // Vertically center the menu within the user area
+    st->menu_start_y =
+        ui_layout->user_start_y +
+        (ui_layout->user_screen_size - st->menu_size) / 2;
 }
 
-/* Clamp first so that pos is always visible in [first, first + MENU_VISIBLE_ROWS - 1] */
-static void menu_ensure_visible(MenuFrame *frame)
+/* Clamp first so that pos is always visible in [first, first + st->menu_item_rows - 1] */
+static void menu_ensure_visible(MenuState *st)
 {
+    MenuFrame *frame = &st->stack[st->depth - 1];
+
     if (frame->pos < frame->first) {
         frame->first = frame->pos;
-    } else if (frame->pos >= (uint8_t)(frame->first + MENU_VISIBLE_ROWS)) {
-        frame->first = frame->pos - (MENU_VISIBLE_ROWS - 1);
+    } else if (frame->pos >= (uint8_t)(frame->first + st->menu_item_rows)) {
+        frame->first = frame->pos - (st->menu_item_rows - 1);
     }
 }
 
@@ -362,7 +392,7 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
             } else {
                 frame->pos = menu->child_count - 1; // wrap to last
             }
-            menu_ensure_visible(frame);
+            menu_ensure_visible(st);
             st->dirty = true;
             break;
 
@@ -372,7 +402,7 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
             } else {
                 frame->pos = 0; // wrap to first
             }
-            menu_ensure_visible(frame);
+            menu_ensure_visible(st);
             st->dirty = true;
             break;
 
@@ -481,22 +511,6 @@ static void menu_tick(UiScreen *self, const UiEvent *ev)
 
 static void menu_draw(UiScreen *self)
 {
-    // consts borrowed from existing code for large displays
-    // TODO: copy over `layout_t` and helpers
-    const uint16_t text_v_offset = 1;
-    const uint16_t status_v_pad = 2;
-    const uint16_t top_h = 16;
-    const uint16_t top_pad = 4;
-    const uint16_t line1_h = 20;
-    const uint16_t small_line_v_pad = 2;
-    const uint16_t horizontal_pad = 4;
-    const uint16_t top_pos_y = top_h - status_v_pad - text_v_offset;
-    const uint16_t line1_pos_y = top_h + top_pad + line1_h - small_line_v_pad - text_v_offset;
-    const uint16_t menu_h = 16;
-    const point_t top_pos = {horizontal_pad, top_pos_y};
-    const point_t line1_pos = {horizontal_pad, line1_pos_y};
-    const fontSize_t top_font = FONT_SIZE_8PT;
-    const fontSize_t menu_font = FONT_SIZE_8PT;
     const color_t color_white = {255, 255, 255, 255};
     const color_t color_black = {0, 0, 0, 255};
 
@@ -527,16 +541,27 @@ static void menu_draw(UiScreen *self)
     
     // Header
     const char *title = menu->label ? menu->label : "";
-    gfx_print(top_pos, top_font, TEXT_ALIGN_CENTER, color_white, title);
+    ui_drawStatusBar(title);
 
     // Menu items
-    point_t pos   = line1_pos;
-    point_t pos_val = { line1_pos.x + scrollbar_pad, line1_pos.y };
+    gfx_rect_t row_rect = {
+        .x = 0,
+        .y = st->menu_start_y,
+        .w = CONFIG_SCREEN_WIDTH - scrollbar_pad,
+        .h = st->menu_item_h,
+    };
+
+    gfx_rect_t label_rect = row_rect;
+    label_rect.x += ui_layout->horizontal_pad;
+    label_rect.w -= ui_layout->horizontal_pad + 32; // TODO: consider space for value column
+
+    gfx_rect_t value_rect = row_rect;
+    value_rect.w -= ui_layout->horizontal_pad;
 
     int     first = frame->first;
     int     count = menu->child_count;
 
-    for(int idx = first; idx < first + MENU_VISIBLE_ROWS && idx < count; ++idx)
+    for(int idx = first; idx < first + st->menu_item_rows && idx < count; ++idx)
     {
         const MenuItem *item = menu->children[idx];
         const char *label    = item->label ? item->label : "";
@@ -554,16 +579,27 @@ static void menu_draw(UiScreen *self)
                 text_color = color_white;
                 full_rect = false;
             }
-            point_t rect_pos = {0, pos.y - menu_h + 3};
-            gfx_drawRect(rect_pos, CONFIG_SCREEN_WIDTH - scrollbar_pad, menu_h, color_white, full_rect);
+            gfx_drawRectRect(row_rect, color_white, full_rect);
             // announceMenuItemIfNeeded()
         }
-        gfx_print(pos, menu_font, TEXT_ALIGN_LEFT, text_color, label);
+        gfx_drawTextRect(label_rect,
+                         st->menu_item_font,
+                         TEXT_ALIGN_LEFT,
+                         TEXT_VALIGN_MIDDLE,
+                         text_color,
+                         label
+        );
 
         char value_buf[16] = {0};
         /* Show if node is unimplemented */
         if (item->kind == MENU_NODE_UNIMPLEMENTED) {
-            gfx_print(pos_val, menu_font, TEXT_ALIGN_RIGHT, text_color, ":(");
+            gfx_drawTextRect(value_rect,
+                             st->menu_item_font,
+                             TEXT_ALIGN_RIGHT,
+                             TEXT_VALIGN_MIDDLE,
+                             text_color,
+                             ":("
+            );
         }
 
         /* Value on the right if this is a VALUE node */
@@ -599,25 +635,32 @@ static void menu_draw(UiScreen *self)
         }
 
         if (value_buf[0] != '\0') {
-            gfx_print(pos_val, menu_font, TEXT_ALIGN_RIGHT, text_color, value_buf);
+            gfx_drawTextRect(value_rect,
+                             st->menu_item_font,
+                             TEXT_ALIGN_RIGHT,
+                             TEXT_VALIGN_MIDDLE,
+                             text_color,
+                             value_buf
+            );
         }
 
-        pos.y += menu_h;
-        pos_val.y = pos.y;
+        row_rect.y   += st->menu_item_h;
+        label_rect.y += st->menu_item_h;
+        value_rect.y += st->menu_item_h;
     }
 
     // Scroll bar
-    int max_first_visible = count - MENU_VISIBLE_ROWS;
+    int max_first_visible = count - st->menu_item_rows;
     uint16_t thumb_px, thumb_pos_px;
-    const uint16_t track_px_start = top_h + top_pad;
-    const uint16_t track_px = CONFIG_SCREEN_HEIGHT - track_px_start; // total height of scrollbar track in pixels
+    const uint16_t track_px_start = st->menu_start_y;
+    const uint16_t track_px = st->menu_size; // total height of scrollbar track in pixels
 
     if (count <= 0 || max_first_visible <= 0) {
         // No scrolling: everything fits, or nothing to show
         thumb_px = track_px;
         thumb_pos_px = 0;
     } else {
-        int32_t num   = (int32_t)track_px * (int32_t)MENU_VISIBLE_ROWS;
+        int32_t num   = (int32_t)track_px * (int32_t)st->menu_item_rows;
         int32_t denom = (int32_t)count;
 
         // Add denom/2 for simple "round to nearest" instead of truncating
