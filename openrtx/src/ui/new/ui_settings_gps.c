@@ -15,7 +15,6 @@ static MenuValueBinding gps_en_binding = {
 
 static const MenuItem m_gps_en =
     MENU_ITEM_VALUE_BINDING("GPS Enabled", &gps_en_binding);
-#endif
 
 #ifdef CONFIG_RTC
 static MenuValueBinding gps_set_time_binding = {
@@ -97,17 +96,17 @@ static int utc_timezone_cb(MenuCmd cmd, void *arg, void *cb_ctx)
 
 static const MenuItem m_utc_timezone =
     MENU_ITEM_VALUE_CB("Timezone", utc_timezone_cb, NULL);
-#endif
+#endif // CONFIG_RTC
 
 static const MenuItem *const gps_children[] = {
-#ifdef CONFIG_GPS
     &m_gps_en,
-#endif
 #ifdef CONFIG_RTC
     &m_gps_set_time,
     &m_utc_timezone,
-#endif
+#endif // CONFIG_RTC
 };
 
 const MenuItem g_gps_settings_menu =
     MENU_FOLDER_FROM_CHILDREN("GPS", gps_children);
+
+#endif // CONFIG_GPS

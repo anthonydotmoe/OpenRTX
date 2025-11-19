@@ -21,8 +21,7 @@ static MenuValueBinding brightness_binding = {
 
 static const MenuItem m_brightness =
     MENU_ITEM_VALUE_BINDING("Brightness", &brightness_binding);
-
-#endif
+#endif // CONFIG_SCREEN_BRIGHTNESS
 
 #ifdef CONFIG_SCREEN_CONTRAST
 static void contrast_on_change(void *ptr) {
@@ -39,7 +38,7 @@ static MenuValueBinding contrast_binding = {
 
 static const MenuItem m_contrast =
     MENU_ITEM_VALUE_BINDING("Contrast", &contrast_binding);
-#endif
+#endif // CONFIG_SCREEN_CONTRAST
 
 static const char *timer_names[] =
 {
@@ -71,6 +70,7 @@ static MenuValueBinding timer_binding = {
 static const MenuItem m_timer =
     MENU_ITEM_VALUE_BINDING("Timer", &timer_binding);
 
+#ifndef CONFIG_BAT_NONE
 static MenuValueBinding battery_icon_binding = {
     .kind      = MENU_VAL_BOOL,
     .ptr       = &state.settings.showBatteryIcon,
@@ -79,17 +79,20 @@ static MenuValueBinding battery_icon_binding = {
 
 static const MenuItem m_battery_icon =
     MENU_ITEM_VALUE_BINDING("Battery Icon", &battery_icon_binding);
+#endif // CONFIG_BAT_NONE
 
 /* Pointer array of children for this folder */
 static const MenuItem *const display_children[] = {
 #ifdef CONFIG_SCREEN_BRIGHTNESS
     &m_brightness,
-#endif
+#endif // CONFIG_SCREEN_BRIGHTNESS
 #ifdef CONFIG_SCREEN_CONTRAST
     &m_contrast,
-#endif
+#endif // CONFIG_SCREEN_CONTRAST
     &m_timer,
+#ifndef CONFIG_BAT_NONE
     &m_battery_icon,
+#endif // CONFIG_BAT_NONE
 };
 
 const MenuItem g_display_settings_menu =
