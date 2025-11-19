@@ -87,6 +87,8 @@ static const GFXfont fonts[] = { TomThumb,            // 5pt
                                  Symbols8pt7b       // 8pt
                                };
 
+static gfx_font_metrics_t font_metrics[FONT_SIZE_NUM];
+
 #ifdef CONFIG_PIX_FMT_RGB565
 
 /* This specialization is meant for an RGB565 little endian pixel format.
@@ -157,6 +159,29 @@ static PIXEL_T __attribute__((section(".bss.fb"))) framebuffer[FB_SIZE];
 #endif
 static char text[32];
 
+static void gfx_init_font_metrics(void)
+{
+    for (int i = 0; i < FONT_SIZE_NUM; ++i) {
+        const GFXfont *f = &fonts[i];
+
+        int16_t ascent  = 0;
+        int16_t descent = 0;
+
+        for (uint16_t c = f->first; c <= f->last; ++c) {
+            const GFXglyph *g = &f->glyph[c - f->first];
+
+            int16_t top    = g->yOffset;
+            int16_t bottom = g->yOffset + g->height;
+
+            if (-top > ascent)    ascent  = -top;
+            if (bottom > descent) descent = bottom;
+        }
+
+        font_metrics[i].ascent      = (uint8_t)ascent;
+        font_metrics[i].descent     = (uint8_t)descent;
+        font_metrics[i].line_height = (uint8_t)(ascent + descent);
+    }
+}
 
 void gfx_init()
 {
@@ -164,6 +189,9 @@ void gfx_init()
 
     // Clear text buffer
     memset(text, 0x00, 32);
+
+    // Compute font metrics
+    gfx_init_font_metrics();
 }
 
 void gfx_terminate()
@@ -329,6 +357,12 @@ void gfx_drawRect(point_t start, uint16_t width, uint16_t height, color_t color,
     }
 }
 
+void gfx_drawRectRect(gfx_rect_t rect, color_t color, bool fill)
+{
+    point_t start = (point_t){ rect.x, rect.y };
+    gfx_drawRect(start, rect.w, rect.h, color, fill);
+}
+
 void gfx_drawCircle(point_t start, uint16_t r, color_t color)
 {
     int16_t f     = 1 - r;
@@ -444,33 +478,37 @@ static inline uint16_t get_reset_x(textAlign_t alignment, uint16_t line_size,
 
 uint8_t gfx_getFontHeight(fontSize_t size)
 {
-    GFXfont f = fonts[size];
-    GFXglyph glyph = f.glyph['|' - f.first];
-    return glyph.height;
+    gfx_font_metrics_t m;
+    gfx_getFontMetrics(size, &m);
+    return m.line_height;
+}
+
+void gfx_getFontMetrics(fontSize_t size, gfx_font_metrics_t *out)
+{
+    if (!out) return;
+    *out = font_metrics[size];
 }
 
 point_t gfx_textSize(fontSize_t size, const char *buf)
 {
-    GFXfont f = fonts[size];
-    size_t len = strlen(buf);
+    const GFXfont *f = &fonts[size];
+    const gfx_font_metrics_t *fm = &font_metrics[size];
+
     uint16_t w = 0;
-    uint16_t h = 0;
+    size_t len = strlen(buf);
 
-    for (size_t i = 0; i < len; ++i)
-    {
-        char c = buf[i];
-
-        if (c == '\n' || c == '\r') break;
-        if (c < f.first || c > f.last) continue;
-
-        GFXglyph glyph = f.glyph[c - f.first];
-        w += glyph.xAdvance;
-        if (glyph.height > h) {
-            h = glyph.height;
-        }
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char c = (unsigned char)buf[i];
+        if (c == '\n' || c == '\r')
+            break;
+        if (c < f->first || c > f->last)
+            continue;
+        
+        const GFXglyph *g = &f->glyph[c - f->first];
+        w += g->xAdvance;
     }
 
-    point_t sz = { w, h };
+    point_t sz = { (int16_t)w, (int16_t)fm->line_height };
     return sz;
 }
 
@@ -608,6 +646,129 @@ point_t gfx_printLine(uint8_t cur, uint8_t tot, int16_t startY, int16_t endY,
 
     point_t start = {startX, printY};
     return gfx_printBuffer(start, size, alignment, color, text);
+}
+
+// Draw a single line of text at a given baseline, no wrapping, no alignment.
+// Returns width actually drawn.
+static uint16_t gfx_drawTextBaseline(point_t baseline,
+                                     const GFXfont *f,
+                                     color_t color,
+                                     const char *buf)
+{
+    size_t len = strlen(buf);
+    int16_t x = baseline.x;
+    int16_t y = baseline.y;
+    uint16_t total_w = 0;
+
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char c = (unsigned char)buf[i];
+        if (c == '\n' || c == '\r')
+            break;
+        if (c < f->first || c > f->last)
+            continue;
+        
+        const GFXglyph *g = &f->glyph[c - f->first];
+        const uint8_t  *bitmap = f->bitmap;
+
+        uint16_t bo = g->bitmapOffset;
+        uint8_t  w  = g->width;
+        uint8_t  h  = g->height;
+        int8_t   xo = g->xOffset;
+        int8_t   yo = g->yOffset;
+
+        uint8_t xx, yy, bits = 0, bit = 0;
+
+        // Blit glyph bitmap
+        for (yy = 0; yy < h; ++yy) {
+            for (xx = 0; xx < w; ++xx) {
+                if (!(bit++ & 7)) {
+                    bits = bitmap[bo++];
+                }
+
+                if (bits & 0x80) {
+                    int16_t px = x + xo + xx;
+                    int16_t py = y + yo + yy;
+                    if (px >= 0 && px < CONFIG_SCREEN_WIDTH &&
+                        py >= 0 && py < CONFIG_SCREEN_HEIGHT) {
+
+                        point_t pos = { px, py };
+                        gfx_setPixel(pos, color);
+                    }
+                }
+
+                bits <<= 1;
+            }
+        }
+
+        x += g->xAdvance;
+        total_w += g->xAdvance;
+    }
+
+    return total_w;
+}
+
+point_t gfx_drawTextRect(gfx_rect_t rect,
+                         fontSize_t size,
+                         textAlign_t halign,
+                         textValign_t valign,
+                         color_t color,
+                         const char *buf)
+{
+    const GFXfont *f = &fonts[size];
+    const gfx_font_metrics_t *fm = &font_metrics[size];
+
+    // Measure text
+    point_t ext = gfx_textSize(size, buf);
+    uint16_t text_w = ext.x;
+    uint16_t text_h = ext.y;
+
+    // Horizontal origin (top-left of text box)
+    int16_t origin_x;
+    switch (halign) {
+    case TEXT_ALIGN_LEFT:
+        origin_x = rect.x;
+        break;
+    case TEXT_ALIGN_CENTER:
+        origin_x = rect.x + (int16_t)(rect.w - text_w) / 2;
+        break;
+    case TEXT_ALIGN_RIGHT:
+        origin_x = rect.x + (int16_t)rect.w - (int16_t)text_w;
+        break;
+    default:
+        origin_x = rect.x;
+        break;
+    }
+
+    // Vertical: compute baseline y
+    int16_t baseline_y;
+    switch (valign) {
+    case TEXT_VALIGN_TOP: {
+        // top of line at rect.y; baseline is top + ascent
+        baseline_y = rect.y + fm->ascent;
+        break;
+    }
+    case TEXT_VALIGN_MIDDLE: {
+        int16_t top = rect.y + (int16_t)(rect.h - text_h) / 2;
+        baseline_y = top + fm->ascent;
+        break;
+    }
+    case TEXT_VALIGN_BOTTOM: {
+        // bottom at rect.y + rect.h; baseline is bottom - descent
+        int16_t bottom = rect.y + (int16_t)rect.h;
+        baseline_y = bottom - fm->descent;
+        break;
+    }
+    default:
+        baseline_y = rect.y + fm->ascent;
+        break;
+    }
+
+    point_t baseline = { origin_x, baseline_y };
+    uint16_t drawn_w = gfx_drawTextBaseline(baseline, f, color, buf);
+
+    // Return bounding size
+    point_t out = { (int16_t)drawn_w, (int16_t)text_h };
+    return out;
 }
 
 // Print an error message to the center of the screen, surronded by a red (when possible) box
