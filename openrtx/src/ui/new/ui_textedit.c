@@ -1,5 +1,7 @@
+#include <stdio.h>
 #include <string.h>
 
+#include "ui/ui_new.h"
 #include "ui/ui_textedit.h"
 #include "ui/ui_screen.h"
 
@@ -41,6 +43,7 @@ static const char *symbols_ITU_T_E161_callsign[] =
     ""
 };
 
+#define TEXTEDIT_LINE_SPACING      2
 #define TEXTEDIT_SCRATCH_SIZE    256
 #define TEXTEDIT_CARET_PERIOD_MS 500
 
@@ -65,6 +68,12 @@ typedef struct {
     // caret blink state
     bool      caret_visible;
     long long last_blink;
+
+    // geometry
+    gfx_rect_t status_rect; // top strip: "input mode, len/max"
+    gfx_rect_t text_rect;   // middle: text entry
+    gfx_rect_t softkey_rect; // bottom strip
+    uint8_t    lines_visible;
 } TexteditState;
 
 static TexteditState g_textedit_state;
@@ -90,6 +99,74 @@ static void textedit_end_multitap(TexteditState *st, long long *now)
         st->caret_visible    = true;
 }
 
+static void textedit_compute_geometry(TexteditState *st)
+{
+    const uint16_t user_y = ui_layout->user_start_y;
+    const uint16_t user_h = ui_layout->user_screen_size;
+    const uint16_t screen_w = CONFIG_SCREEN_WIDTH - (ui_layout->horizontal_pad * 2);
+
+    // Small font for status+softkeys
+    const uint8_t small_h = gfx_getFontHeight(ui_layout->small_font);
+
+    // Text font metrics for the edit area
+    gfx_font_metrics_t tfm;
+    gfx_getFontMetrics(ui_layout->text_font, &tfm);
+    const uint8_t text_line_h = tfm.line_height;
+
+    // Vertical padding inside the small strips
+    const uint8_t status_pad_y  = 2;
+    const uint8_t softkey_pad_y = 2;
+
+    uint16_t status_h  = (uint16_t)(small_h + 2 * status_pad_y);
+    uint16_t softkey_h = (uint16_t)(small_h + 2 * softkey_pad_y);
+
+    // Make sure we have at least one text line worth of height
+    if (status_h + softkey_h + text_line_h > user_h) {
+        // Clamp status/softkey to avoid going negative; worst case we still
+        // give the text area at least text_line_h height.
+        uint16_t available_for_strips = user_h > text_line_h ? (user_h - text_line_h) : 0;
+        if (available_for_strips < status_h + softkey_h) {
+            // Split evenly-ish
+            status_h  = available_for_strips / 2;
+            softkey_h = available_for_strips - status_h;
+        }
+    }
+
+    st->status_rect.x = 0;
+    st->status_rect.y = (int16_t)user_y;
+    st->status_rect.w = screen_w;
+    st->status_rect.h = status_h;
+
+    st->softkey_rect.x = 0;
+    st->softkey_rect.y = (int16_t)(user_y + user_h - softkey_h);
+    st->softkey_rect.w = screen_w;
+    st->softkey_rect.h = softkey_h;
+
+    st->text_rect.x = ui_layout->horizontal_pad;
+    st->text_rect.y = (int16_t)(st->status_rect.y + st->status_rect.h);
+    st->text_rect.w = screen_w;
+    st->text_rect.h = (uint16_t)(st->softkey_rect.y - st->text_rect.y);
+
+    // Compute how many lines fit vertically in the text_rect, accounting
+    // for some inner padding and line spacing.
+    const uint8_t inner_pad_y = 2; // inside text box
+
+    uint16_t usable_h = st->text_rect.h;
+    if (usable_h > 2 * inner_pad_y)
+        usable_h = (uint16_t)(usable_h - 2 * inner_pad_y);
+    
+    uint8_t max_lines = 1;
+    const uint16_t per_line = (uint16_t)(text_line_h + TEXTEDIT_LINE_SPACING);
+    if (per_line > 0) {
+        max_lines = (uint8_t)(usable_h / per_line);
+        if (max_lines == 0) {
+            max_lines = 1;
+        }
+    }
+
+    st->lines_visible = max_lines;
+}
+
 static void textedit_reset(TexteditState *st)
 {
     st->cursor        = 0;
@@ -104,6 +181,8 @@ static void textedit_reset(TexteditState *st)
     st->last_blink    = getTick();
     
     st->scratch[0] = '\0';
+
+    textedit_compute_geometry(st);
 }
 
 static bool textedit_insert_char_at_cursor(TexteditState *st, char ch)
@@ -372,24 +451,8 @@ static void textedit_tick(UiScreen *self, const UiEvent *ev)
     }
 }
 
-#define TEXTEDIT_TEXT_Y_ADJUST 12 //TODO: fix the existance of this magic number
-
 static void textedit_draw(UiScreen *self)
 {
-    const uint16_t text_v_offset    = 1;
-    const uint16_t status_v_pad     = 2;
-    const uint16_t top_h            = 16;
-    const uint16_t top_pad          = 4;
-    const uint16_t line1_h          = 20;
-    const uint16_t small_line_v_pad = 2;
-    const uint16_t horizontal_pad   = 4;
-    const uint16_t bottom_h         = 23;
-    const uint8_t  lines_visible    = 4;  // how many lines fit in the box
-    const uint8_t  line_spacing     = 2;  // vertical pixels between baselines
-
-    const fontSize_t top_font       = FONT_SIZE_8PT;
-    const fontSize_t text_font      = FONT_SIZE_8PT;
-
     const color_t color_white = (color_t){255, 255, 255, 255};
 
     TexteditState *st = (TexteditState *)self->ctx;
@@ -402,54 +465,53 @@ static void textedit_draw(UiScreen *self)
     gfx_clearScreen();
 
     // Header
-    const uint16_t top_pos_y = top_h - status_v_pad - text_v_offset;
-    const point_t  top_pos   = { horizontal_pad, top_pos_y };
-    gfx_print(top_pos, top_font, TEXT_ALIGN_CENTER, color_white, st->title);
+    ui_drawStatusBar(st->title);
 
-    // Status bar
-    const uint16_t status_bar_pos_y = top_h + top_pad + 8;
-    const point_t  status_bar_pos = { horizontal_pad, status_bar_pos_y - status_v_pad - text_v_offset };
-    gfx_print(status_bar_pos, FONT_SIZE_6PT, TEXT_ALIGN_RIGHT, color_white, "%" PRIu8 "/%" PRIu8, st->len, st->max_len);
+    // Status strip
+    char status_buf[16];
+    sniprintf(status_buf, sizeof status_buf, "%" PRIu8 "/%" PRIu8, st->len, st->max_len);
+
+    gfx_drawTextRect(
+        st->status_rect,
+        ui_layout->small_font,
+        TEXT_ALIGN_RIGHT,
+        TEXT_VALIGN_MIDDLE,
+        color_white,
+        status_buf
+    );
     
-    // Softkey labels
-    const uint16_t softkey_pos_y = CONFIG_SCREEN_HEIGHT - status_v_pad;
-    const point_t  softkey_pos = { horizontal_pad, softkey_pos_y };
-    gfx_print(softkey_pos, FONT_SIZE_6PT, TEXT_ALIGN_RIGHT, color_white, "Delete");
+    // Softkey strip
+    gfx_drawTextRect(
+        st->softkey_rect,
+        ui_layout->small_font,
+        TEXT_ALIGN_RIGHT,
+        TEXT_VALIGN_MIDDLE,
+        color_white,
+        "Delete"
+    );
     
     /* --- Edit box geometry --- */
 
     // Font metrics
-    uint8_t font_h = gfx_getFontHeight(text_font);
-
-    // Outer rectangle margins on screen
-    const uint16_t rect_margin_x   = 4;
-    const uint16_t rect_margin_top = status_bar_pos_y + top_pad;
+    gfx_font_metrics_t tfm;
+    gfx_getFontMetrics(ui_layout->text_font, &tfm);
+    const uint8_t font_h = tfm.line_height;
+    const uint8_t line_spacing = TEXTEDIT_LINE_SPACING;
 
     // Inner padding between rect border and text
     const uint16_t inner_pad_x     = 4;
     const uint16_t inner_pad_y     = 4;
+    
+    // Borders around text area
+    gfx_drawRectRect(st->text_rect, color_white, false);
 
-    // Height for multiple lines:
-    // top pad = N*font + (N-1)*spacing + bottom pad
-    uint16_t rect_width  = CONFIG_SCREEN_WIDTH - (rect_margin_x * 2);
-    uint16_t rect_height =
-        (uint16_t)(inner_pad_y * 2 +
-                   lines_visible * font_h +
-                   (lines_visible - 1) * line_spacing);
+    // Horizontal text area inside the rect
+    const int16_t text_start_x = (int16_t)(st->text_rect.x + inner_pad_x);
+    const int16_t text_area_right = (int16_t)(st->text_rect.x + st->text_rect.w - inner_pad_x);
 
-    point_t rect_origin = {
-        (int16_t)rect_margin_x,
-        (int16_t)rect_margin_top
-    };
-
-    gfx_drawRect(rect_origin, rect_width, rect_height, color_white, false);
-
-    // Base glyph box for the first line
-    int16_t base_glyph_top_line0 = (int16_t)(rect_origin.y + inner_pad_y);
-
-    // Text drawing area
-    int16_t text_start_x = (int16_t)rect_origin.x + inner_pad_x;
-    int16_t text_area_right = (int16_t)(rect_origin.x + rect_width - inner_pad_x);
+    // Baseline of the first text line
+    const int16_t first_baseline_y =
+        (int16_t)(st->text_rect.y + inner_pad_y + tfm.ascent);
 
     /* --- First pass: lay out to find total_lines and caret position --- */
 
@@ -475,7 +537,7 @@ static void textedit_draw(UiScreen *self)
             }
 
             char tmp[2] = { c, 0 };
-            point_t sz = gfx_textSize(text_font, tmp);
+            point_t sz = gfx_textSize(ui_layout->text_font, tmp);
 
             // If this glyph would overflow the text area, wrap to next line
             if ((cur_x + (int16_t)sz.x > text_area_right) && (cur_x != text_start_x)) {
@@ -512,15 +574,15 @@ static void textedit_draw(UiScreen *self)
 
     /* --- Decide which lines to show so the caret is visible --- */
     uint8_t first_visible_line = 0;
-    if (total_lines <= lines_visible) {
+    if (total_lines <= st->lines_visible) {
         first_visible_line = 0;
     } else {
         // Try to keep the caret on the bottom visible line
-        int min_start = (int)caret_line_idx - (int)(lines_visible - 1);
+        int min_start = (int)caret_line_idx - (int)(st->lines_visible - 1);
         if (min_start < 0)
             min_start = 0;
-        if (min_start > (int)total_lines - (int)lines_visible)
-            min_start = (int)total_lines - (int)lines_visible;
+        if (min_start > (int)total_lines - (int)st->lines_visible)
+            min_start = (int)total_lines - (int)st->lines_visible;
         first_visible_line = (uint8_t)min_start;
     }
 
@@ -536,7 +598,7 @@ static void textedit_draw(UiScreen *self)
         }
 
         char tmp[2] = { c, 0 };
-        point_t sz = gfx_textSize(text_font, tmp);
+        point_t sz = gfx_textSize(ui_layout->text_font, tmp);
 
         // If this glyph would overflow the text area, wrap to next line
         if ((cur_x + (int16_t)sz.x > text_area_right) && (cur_x != text_start_x)) {
@@ -545,24 +607,19 @@ static void textedit_draw(UiScreen *self)
         }
 
         if (cur_line >= first_visible_line &&
-            cur_line < (uint8_t)(first_visible_line + lines_visible)) {
+            cur_line < (uint8_t)(first_visible_line + st->lines_visible)) {
             
             uint8_t rel_line = (uint8_t)(cur_line - first_visible_line);
 
             // Base glyph box for this line
-            int16_t base_glyph_top =
-                (int16_t)(base_glyph_top_line0 +
+            int16_t line_baseline_y =
+                (int16_t)(first_baseline_y +
                           rel_line * (font_h + line_spacing));
             
-            // Actual text baseline for this line
-            int16_t glyph_top = (int16_t)(base_glyph_top + TEXTEDIT_TEXT_Y_ADJUST);
+            point_t pos = { cur_x, line_baseline_y };
 
-            point_t pos = {
-                cur_x,
-                glyph_top
-            };
-
-            gfx_printBuffer(pos, text_font, TEXT_ALIGN_LEFT, color_white, tmp);
+            // pos.y is the baseline; gfx_printBuffer uses yOffset from there
+            gfx_printBuffer(pos, ui_layout->text_font, TEXT_ALIGN_LEFT, color_white, tmp);
         }
 
         cur_x = (int16_t)(cur_x + sz.x);
@@ -575,27 +632,27 @@ static void textedit_draw(UiScreen *self)
         if (caret_line_idx < first_visible_line) {
             caret_line_idx = first_visible_line;
         }
-        if (caret_line_idx >= (uint8_t)(first_visible_line + lines_visible)) {
-            caret_line_idx = (uint8_t)(first_visible_line + lines_visible - 1);
+        if (caret_line_idx >= (uint8_t)(first_visible_line + st->lines_visible)) {
+            caret_line_idx = (uint8_t)(first_visible_line + st->lines_visible - 1);
         }
 
         uint8_t caret_rel_line = (uint8_t)(caret_line_idx - first_visible_line);
 
         // Clamp caret horizontally to inside the rectangle
         int caret_x = caret_x_full;
-        int rect_left  = rect_origin.x;
-        int rect_right = rect_origin.y + (int)rect_width - 1;
+        int rect_left  = st->text_rect.x + inner_pad_x;
+        int rect_right = st->text_rect.x + (int)st->text_rect.w - inner_pad_x;
 
         if (caret_x < rect_left)  caret_x = rect_left;
         if (caret_x > rect_right) caret_x = rect_right;
 
         // Base glyph box for caret's line
-        int16_t caret_base_glyph_top =
-            (int16_t)(base_glyph_top_line0 +
+        int16_t caret_baseline_y =
+            (int16_t)(first_baseline_y +
                       caret_rel_line * (font_h + line_spacing));
 
-        uint16_t caret_height = (uint16_t)(font_h + 2);
-        uint16_t caret_top    = (uint16_t)(caret_base_glyph_top - 1);
+        uint16_t caret_height = tfm.line_height;
+        uint16_t caret_top    = (uint16_t)(caret_baseline_y - tfm.ascent);
         point_t  caret_pos    = { (int16_t)caret_x, (int16_t)caret_top };
 
         gfx_drawRect(caret_pos, 1, caret_height, color_white, true);
