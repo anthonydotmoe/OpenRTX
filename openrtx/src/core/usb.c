@@ -88,12 +88,6 @@ static bool usb_log_try_recv(UsbLogMsg *out)
     return true;
 }
 
-static void service_usb()
-{
-    tud_task();
-    tud_cdc_write_flush();
-}
-
 static void vcom_write(UsbLogMsg *msg)
 {
     const uint8_t *data = (const uint8_t *)&msg->data;
@@ -101,12 +95,14 @@ static void vcom_write(UsbLogMsg *msg)
     size_t written = 0;
     uint16_t timeout = 0;
 
+    if (!tud_cdc_connected()) {
+        return;
+    }
+
     while (written < len)
     {
-        service_usb();
-
         uint32_t avail;
-        if (!tud_cdc_connected() || (avail = tud_cdc_write_available()) == 0)
+        if ((avail = tud_cdc_write_available()) == 0)
         {
             if (timeout++ > 500) return;
             delayMs(1);
@@ -118,6 +114,8 @@ static void vcom_write(UsbLogMsg *msg)
 
         written += tud_cdc_write(data + written, chunk);
     }
+
+    tud_cdc_write_flush();
 }
 
 void *usb_threadfunc(void *arg)
