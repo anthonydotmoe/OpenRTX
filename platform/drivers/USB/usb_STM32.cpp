@@ -22,16 +22,16 @@
 #include "peripherals/gpio.h"
 #include "hwconfig.h"
 #include "usb.h"
+#include "tusb.h"
 
 /*
  * USB interrupt handler.
- *
+ */
 
 void OTG_FS_IRQHandler(void)
 {
     tud_int_handler(0);
 }
-*/
 
 void usb_init()
 {
@@ -41,6 +41,7 @@ void usb_init()
     gpio_setOutputSpeed(GPIOA, 11, HIGH);      // 100MHz output speed
     gpio_setOutputSpeed(GPIOA, 12, HIGH);      // 100MHz output speed
 
+#if defined(STM32F405xx)
     RCC->APB2ENR |= RCC_APB2ENR_SYSCFGEN;
     RCC->AHB2ENR |= RCC_AHB2ENR_OTGFSEN;
     __DSB();
@@ -48,6 +49,28 @@ void usb_init()
     // Disable VBUS detection and activate the USB transceiver
     USB_OTG_FS->GCCFG   |= USB_OTG_GCCFG_NOVBUSSENS
                         |  USB_OTG_GCCFG_PWRDWN;
+
+#elif defined(STM32H743xx)
+    // Enable HSI48 oscillator
+    RCC->CR |= RCC_CR_HSI48ON;
+    while((RCC->CR & RCC_CR_HSI48RDY)==0) ; //Wait
+
+    // Configure OTG2 to use HSI48
+    RCC->D2CCIP2R = (RCC->D2CCIP2R & ~RCC_D2CCIP2R_USBSEL) | RCC_D2CCIP2R_USBSEL;
+
+    RCC->APB4ENR |= RCC_APB4ENR_SYSCFGEN;
+    RCC->AHB1ENR |= RCC_AHB1ENR_USB2OTGFSEN;
+    __DSB();
+
+    RCC->CR      |= RCC_CR_HSI48ON;
+    while((RCC->CR & RCC_CR_HSI48RDY) == 0) ;
+    RCC->D2CCIP2R = (RCC->D2CCIP2R & ~RCC_D2CCIP2R_USBSEL) | RCC_D2CCIP2R_USBSEL;
+    PWR->CR3            |= PWR_CR3_USB33DEN; // HAL_PWREx_EnableUSBVoltageDetector
+    while((PWR->CR3 & PWR_CR3_USB33RDY) == 0) ;
+    //USB_OTG_FS->GCCFG   |= USB_OTG_GCCFG_PWRDWN;
+    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOEN;
+    USB_OTG_FS->GOTGCTL |= USB_OTG_GOTGCTL_BVALOVAL;
+#endif
 
     // Force USB device mode
     USB_OTG_FS->GUSBCFG |= USB_OTG_GUSBCFG_FDMOD;
@@ -59,6 +82,11 @@ void usb_init()
 
 void usb_terminate()
 {
+#if defined(STM32F405xx)
     RCC->AHB2ENR &= ~RCC_AHB2ENR_OTGFSEN;
+#elif defined(STM32H743xx)
+    RCC->AHB1ENR &= ~RCC_AHB1ENR_USB2OTGFSEN;
+    RCC->CR      &= ~RCC_CR_HSI48ON;
+#endif
     __DSB();
 }

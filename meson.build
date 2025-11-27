@@ -56,6 +56,7 @@ openrtx_src = ['openrtx/src/core/state.c',
                'openrtx/src/core/voicePromptUtils.c',
                'openrtx/src/core/voicePromptData.S',
                'openrtx/src/core/nvmem_access.c',
+               'openrtx/src/core/usb.c',
                'openrtx/src/rtx/rtx.cpp',
                'openrtx/src/rtx/OpMode_FM.cpp',
                'openrtx/src/rtx/OpMode_M17.cpp',
@@ -116,6 +117,10 @@ endif
 
 # XPowersLib, library for x-powers power management series
 xpowerslib_proj = subproject('XPowersLib')
+
+# TinyUSB, shared across STM32F4 and STM32H7
+tinyusb_proj = subproject('tinyusb')
+tinyusb_dep  = tinyusb_proj.get_variable('tinyusb_dep')
 
 ##
 ## RTOS
@@ -187,16 +192,8 @@ gdx_inc = ['platform/targets/GDx']
 stm32f405_src = ['platform/mcu/STM32F4xx/boot/startup.cpp',
                  'platform/mcu/STM32F4xx/boot/bsp.cpp',
                  'platform/mcu/STM32F4xx/boot/libc_integration.cpp',
-                 'platform/mcu/STM32F4xx/drivers/usb/usb_bsp.c',
-                 'platform/mcu/STM32F4xx/drivers/usb/usb_core.c',
-                 'platform/mcu/STM32F4xx/drivers/usb/usb_dcd.c',
-                 'platform/mcu/STM32F4xx/drivers/usb/usb_dcd_int.c',
-                 'platform/mcu/STM32F4xx/drivers/usb/usbd_desc.c',
-                 'platform/mcu/STM32F4xx/drivers/usb/usbd_core.c',
-                 'platform/mcu/STM32F4xx/drivers/usb/usbd_ioreq.c',
-                 'platform/mcu/STM32F4xx/drivers/usb/usbd_req.c',
-                 'platform/mcu/STM32F4xx/drivers/usb/usbd_usr.c',
-                 'platform/mcu/STM32F4xx/drivers/usb_vcom.c',
+                 'platform/drivers/USB/usb_STM32.cpp',
+                 'platform/drivers/USB/usb_descriptors.c',
                  'platform/mcu/STM32F4xx/drivers/delays.cpp',
                  'platform/mcu/STM32F4xx/drivers/rtc.c',
                  'platform/mcu/STM32F4xx/drivers/USART3.cpp',
@@ -217,9 +214,9 @@ stm32f405_inc = ['platform/mcu/CMSIS/Include',
                  'platform/mcu/CMSIS/Device/ST/STM32F4xx/Include',
                  'platform/mcu/STM32F4xx',
                  'platform/mcu/STM32F4xx/drivers',
-                 'platform/mcu/STM32F4xx/drivers/usb']
+                 'platform/drivers/USB']
 
-stm32f405_def = {'STM32F405xx': '', 'HSE_VALUE':'8000000'}
+stm32f405_def = {'STM32F405xx': '', 'HSE_VALUE':'8000000', 'CFG_TUSB_MCU':'OPT_MCU_STM32F4'}
 
 stm32f405_src += miosix_cm4f_src
 stm32f405_inc += miosix_cm4f_inc
@@ -264,6 +261,8 @@ mk22fn512_def += miosix_cm4f_def
 stm32h743_src = ['platform/mcu/STM32H7xx/boot/startup.cpp',
                  'platform/mcu/STM32H7xx/boot/bsp.cpp',
                  'platform/mcu/STM32H7xx/boot/libc_integration.cpp',
+                 'platform/drivers/USB/usb_STM32.cpp',
+                 'platform/drivers/USB/usb_descriptors.c',
                  'platform/mcu/STM32H7xx/drivers/rcc.cpp',
                  'platform/mcu/STM32H7xx/drivers/delays.cpp',
                  'platform/drivers/GPIO/gpio_stm32.c',
@@ -278,9 +277,10 @@ stm32h743_src = ['platform/mcu/STM32H7xx/boot/startup.cpp',
 stm32h743_inc = ['platform/mcu/CMSIS/Include',
                  'platform/mcu/CMSIS/Device/ST/STM32H7xx/Include',
                  'platform/mcu/STM32H7xx',
-                 'platform/mcu/STM32H7xx/drivers']
+                 'platform/mcu/STM32H7xx/drivers',
+                 'platform/drivers/USB']
 
-stm32h743_def = {'STM32H743xx': '', 'HSE_VALUE':'25000000'}
+stm32h743_def = {'STM32H743xx': '', 'HSE_VALUE':'25000000', 'CFG_TUSB_MCU':'OPT_MCU_STM32H7', 'ENABLE_STDIO': ''}
 
 stm32h743_src += miosix_cm7_src
 stm32h743_inc += miosix_cm7_inc
@@ -710,7 +710,7 @@ linux_mod17_opts = {
 md3x0_opts = {
   'sources'            : md3x0_src,
   'include_directories': md3x0_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep, tinyusb_dep],
   'c_args'             : md3x0_args,
   'cpp_args'           : md3x0_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -719,7 +719,7 @@ md3x0_opts = {
 mduv3x0_opts = {
   'sources'            : mduv3x0_src,
   'include_directories': mduv3x0_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep, tinyusb_dep],
   'c_args'             : mduv3x0_args,
   'cpp_args'           : mduv3x0_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -746,7 +746,7 @@ dm1801_opts = {
 md9600_opts = {
   'sources'            : md9600_src,
   'include_directories': md9600_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep, tinyusb_dep],
   'c_args'             : md9600_args,
   'cpp_args'           : md9600_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']
@@ -755,7 +755,7 @@ md9600_opts = {
 mod17_opts = {
   'sources'            : mod17_src,
   'include_directories': mod17_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep, tinyusb_dep],
   'c_args'             : mod17_args,
   'cpp_args'           : mod17_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/stm32_1m+192k_rom.ld']
@@ -773,7 +773,7 @@ ttwrplus_opts = {
 cs7000_opts = {
   'sources'            : cs7000_src,
   'include_directories': cs7000_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep, tinyusb_dep],
   'c_args'             : cs7000_args,
   'cpp_args'           : cs7000_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/stm32_1m+192k_rom.ld']
@@ -782,7 +782,7 @@ cs7000_opts = {
 cs7000p_opts = {
   'sources'            : cs7000p_src,
   'include_directories': cs7000p_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep, tinyusb_dep],
   'c_args'             : cs7000p_args,
   'cpp_args'           : cs7000p_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32H7xx/linker_script_cs7000p.ld',
@@ -792,7 +792,7 @@ cs7000p_opts = {
 dm1701_opts = {
   'sources'            : dm1701_src,
   'include_directories': dm1701_inc,
-  'dependencies'       : [codec2_dep],
+  'dependencies'       : [codec2_dep, tinyusb_dep],
   'c_args'             : dm1701_args,
   'cpp_args'           : dm1701_args,
   'link_args'          : ['-Wl,-T../platform/mcu/STM32F4xx/linker_script_MDx.ld']

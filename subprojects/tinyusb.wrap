@@ -1,4 +1,4 @@
 [wrap-git]
 url = https://github.com/hathach/tinyusb.git
-revision = 4bfab30c02279a0530e1a56f4a7c539f2d35a293
+revision = fee2d2a034d65aa625bc1a8b32c3b7a51292a39f
 patch_directory = tinyusb

@@ -23,6 +23,8 @@
  *
  */
 
+#include <stdio.h>
+
 #include "interfaces/platform.h"
 #include "tusb.h"
 
@@ -75,20 +77,19 @@ uint8_t const * tud_descriptor_device_cb(void)
 //--------------------------------------------------------------------+
 enum
 {
-    ITF_NUM_CDC_0 = 0,
-    ITF_NUM_CDC_0_DATA,
+    ITF_NUM_CDC = 0,
+    ITF_NUM_CDC_DATA,
     ITF_NUM_TOTAL
 };
 
-#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN)
+#define CONFIG_TOTAL_LEN  (TUD_CONFIG_DESC_LEN + TUD_CDC_DESC_LEN /*+ TUD_MSC_DESC_LEN*/)
 
-#define EPNUM_CDC_0_NOTIF 0x81
-#define EPNUM_CDC_0_OUT   0x02
-#define EPNUM_CDC_0_IN    0x82
+#define EPNUM_CDC_NOTIF 0x81
+#define EPNUM_CDC_OUT   0x02
+#define EPNUM_CDC_IN    0x82
 
-#define EPNUM_CDC_1_NOTIF 0x83
-#define EPNUM_CDC_1_OUT   0x04
-#define EPNUM_CDC_1_IN    0x84
+#define EPNUM_MSC_OUT   0x03
+#define EPNUM_MSC_IN    0x83
 
 uint8_t const desc_fs_configuration[] =
 {
@@ -96,10 +97,13 @@ uint8_t const desc_fs_configuration[] =
     // power in mA
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
-    // 1st CDC: Interface number, string index, EP notification address and
-    // size, EP data address (out, in) and size.
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_0, 4, EPNUM_CDC_0_NOTIF, 8,
-                       EPNUM_CDC_0_OUT, EPNUM_CDC_0_IN, 64),
+    // Interface number, string index, EP notification address and size, EP data
+    // address (out, in) and size.
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, 4, EPNUM_CDC_NOTIF, 8,
+                       EPNUM_CDC_OUT, EPNUM_CDC_IN, 64),
+    
+    // Interface number, string index, EP Out & EP in address, EP size
+    //TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 5, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
 };
 
 // Invoked when received GET CONFIGURATION DESCRIPTOR
@@ -114,6 +118,37 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 //--------------------------------------------------------------------+
 // String Descriptors
 //--------------------------------------------------------------------+
+
+// TODO: maybe make this `platform_getSerial`?
+void build_serial_from_hwid(char *dst, size_t len)
+{
+    // 24 hex chars + NUL
+    const size_t needed = 24 + 1;
+
+    if (len < needed) {
+        if (len > 0) {
+            dst[0] = '\0';
+        }
+        return;
+    }
+
+    volatile uint32_t *uid = (uint32_t *)UID_BASE;
+
+    uint32_t w0 = uid[0];
+    uint32_t w1 = uid[1];
+    uint32_t w2 = uid[2];
+
+    sniprintf(dst, len,
+              "%08" PRIX32 "%08" PRIX32 "%08" PRIX32,
+              w0, w1, w2);
+}
+
+enum {
+    STRID_LANGID = 0,
+    STRID_MANUFACTURER,
+    STRID_PRODUCT,
+    STRID_SERIAL,
+};
 
 // array of pointer to string descriptors
 static const char* string_desc_arr [] =
@@ -136,13 +171,27 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 
     uint8_t chr_count;
 
-    if(index == 0)
-    {
+    switch (index) {
+    case STRID_LANGID: {
         memcpy(&_desc_str[1], string_desc_arr[0], 2);
         chr_count = 1;
+        break;
     }
-    else
-    {
+    
+    case STRID_SERIAL: {
+        // Build ASCII serial from platform-specific UID
+        char serial[32];
+        build_serial_from_hwid(serial, sizeof(serial));
+
+        chr_count = strlen(serial);
+        if (chr_count > 31) chr_count = 31;
+
+        for (uint8_t i = 0; i < chr_count; i++) {
+            _desc_str[1 + i] = serial[i];
+        }
+    }
+    
+    default: {
         // Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
         // https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
@@ -159,6 +208,8 @@ uint16_t const* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
         {
             _desc_str[1+i] = str[i];
         }
+        break;
+    }
     }
 
     // first byte is length (including header), second byte is string type

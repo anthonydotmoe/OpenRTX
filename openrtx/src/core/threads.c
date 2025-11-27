@@ -35,6 +35,7 @@
 #include "core/backup.h"
 #include "core/gps.h"
 #include "core/voicePrompts.h"
+#include "core/usb.h"
 
 #if defined(PLATFORM_TTWRPLUS)
 #include "pmu.h"
@@ -233,4 +234,14 @@ void create_threads()
 
     pthread_t ui_thread;
     pthread_create(&ui_thread, &ui_attr, ui_threadFunc, NULL);
+
+    #ifdef _MIOSIX
+    // TODO: Gate this some other way too? CONFIG_USB?
+    pthread_attr_t usb_attr;
+    pthread_attr_init(&usb_attr);
+    pthread_attr_setstacksize(&usb_attr, USB_THREAD_STKSIZE);
+    pthread_attr_setschedparam(&usb_attr, &param);
+    pthread_t usb_thread;
+    pthread_create(&usb_thread, &usb_attr, usb_threadfunc, NULL);
+    #endif
 }

@@ -11,10 +11,14 @@
 
    
 // Select CFG_TUSB_MCU starting from CPU type
-#ifdef STM32F405xx
-  #define CFG_TUSB_MCU OPT_MCU_STM32F4
-#else
-  #error CFG_TUSB_MCU must be defined
+#ifndef CFG_TUSB_MCU
+  #if defined(STM32F405xx)
+    #define CFG_TUSB_MCU OPT_MCU_STM32F4
+  #elif defined(STM32H743xx)
+    #define CFG_TUSB_MCU OPT_MCU_STM32H7
+  #else
+    #error CFG_TUSB_MCU must be defined
+  #endif
 #endif
 
 // RHPort number used for device can be defined by board.mk, default to port 0
@@ -48,6 +52,9 @@
 
 // CFG_TUSB_DEBUG is defined by compiler in DEBUG build
 #define CFG_TUSB_DEBUG           0
+
+// Enable Device stack
+#define CFG_TUD_ENABLED          1
 
 /* USB DMA on some MCUs can only access a specific SRAM region with restriction on alignment.
  * Tinyusb use follows macros to declare transferring memory so that they can be put
@@ -85,6 +92,9 @@
 
 // CDC Endpoint transfer buffer size, more is faster
 #define CFG_TUD_CDC_EP_BUFSIZE   (TUD_OPT_HIGH_SPEED ? 512 : 64)
+
+// MSC Buffer size of Mass Storage Device
+#define CFG_TUD_MSC_EP_BUFSIZE   512
 
 #ifdef __cplusplus
  }

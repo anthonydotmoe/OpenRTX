@@ -17,7 +17,7 @@
 
 #include <stdio.h>
 #include <reent.h>
-#include "../drivers/usb_vcom.h"
+#include "core/usb.h"
 #include "filesystem/file_access.h"
 
 using namespace std;
@@ -33,10 +33,12 @@ extern "C" {
 int _write_r(struct _reent *ptr, int fd, const void *buf, size_t cnt)
 {
     #ifdef ENABLE_STDIO
-    if(fd == STDOUT_FILENO || fd == STDERR_FILENO)
+    if (fd == STDOUT_FILENO || fd == STDERR_FILENO)
     {
-        vcom_writeBlock(buf, cnt);
-        return cnt;
+        if (!usb_log_send((const char *)buf, cnt)) {
+            // just drop it for now
+        }
+        return (int)cnt;
     }
     #else
     (void) ptr;
@@ -57,14 +59,7 @@ int _write_r(struct _reent *ptr, int fd, const void *buf, size_t cnt)
 int _read_r(struct _reent *ptr, int fd, void *buf, size_t cnt)
 {
     #ifdef ENABLE_STDIO
-    if(fd == STDIN_FILENO)
-    {
-        for(;;)
-        {
-            ssize_t r = vcom_readBlock(buf, cnt);
-            if((r < 0) || (r == (ssize_t)(cnt))) return r;
-        }
-    }
+        (void)buf; (void)cnt;
     #else
     (void) ptr;
     (void) fd;

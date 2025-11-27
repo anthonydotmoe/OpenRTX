@@ -17,6 +17,7 @@
 
 #include <stdio.h>
 #include <reent.h>
+#include "core/usb.h"
 #include "filesystem/file_access.h"
 
 using namespace std;
@@ -31,10 +32,20 @@ extern "C" {
  */
 int _write_r(struct _reent *ptr, int fd, const void *buf, size_t cnt)
 {
+    #ifdef ENABLE_STDIO
+    if (fd == STDOUT_FILENO || fd == STDERR_FILENO)
+    {
+        if (!usb_log_send((const char *)buf, cnt)) {
+            // just drop it for now
+        }
+        return (int)cnt;
+    }
+    #else
     (void) ptr;
     (void) fd;
     (void) buf;
     (void) cnt;
+    #endif
 
     /* If fd is not stdout or stderr */
     ptr->_errno = EBADF;
@@ -47,10 +58,14 @@ int _write_r(struct _reent *ptr, int fd, const void *buf, size_t cnt)
  */
 int _read_r(struct _reent *ptr, int fd, void *buf, size_t cnt)
 {
+    #ifdef ENABLE_STDIO
+        (void)buf; (void)cnt;
+    #else
     (void) ptr;
     (void) fd;
     (void) buf;
     (void) cnt;
+    #endif
 
     /* If fd is not stdin */
     ptr->_errno = EBADF;
